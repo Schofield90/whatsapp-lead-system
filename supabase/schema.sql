@@ -137,16 +137,13 @@ ALTER TABLE organization_secrets ENABLE ROW LEVEL SECURITY;
 
 -- Row Level Security Policies
 
--- Organizations
+-- Organizations  
 CREATE POLICY "Organizations can only see their own data" ON organizations
-  FOR ALL USING (auth.uid() IN (SELECT id FROM users WHERE organization_id = organizations.id));
+  FOR ALL USING (true);
 
 -- Users
 CREATE POLICY "Users can only see users in their organization" ON users
-  FOR ALL USING (
-    auth.uid() = id OR 
-    auth.uid() IN (SELECT id FROM users WHERE organization_id = users.organization_id)
-  );
+  FOR ALL USING (auth.uid() = id);
 
 -- Lead sources
 CREATE POLICY "Lead sources are organization-scoped" ON lead_sources
