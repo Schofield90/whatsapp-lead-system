@@ -22,6 +22,8 @@ import {
   Calendar,
   ExternalLink
 } from 'lucide-react';
+import { ManualMessageDialog } from '@/components/conversations/manual-message-dialog';
+import { TestMessageDialog } from '@/components/conversations/test-message-dialog';
 
 export default async function ConversationsPage() {
   const userProfile = await requireOrganization();
@@ -88,7 +90,7 @@ export default async function ConversationsPage() {
             Monitor and manage WhatsApp conversations with your leads
           </p>
         </div>
-        <Button>Manual Message</Button>
+        <ManualMessageDialog />
       </div>
 
       {/* Stats Cards */}
@@ -253,7 +255,7 @@ export default async function ConversationsPage() {
               <p className="text-gray-500 mb-4">
                 Conversations will appear here when leads start messaging via WhatsApp
               </p>
-              <Button>Send Test Message</Button>
+              <TestMessageDialog />
             </div>
           )}
         </CardContent>

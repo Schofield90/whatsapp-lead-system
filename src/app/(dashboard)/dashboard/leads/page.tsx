@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/table';
 import { getRelativeTime } from '@/lib/utils';
 import { Search, Filter, Phone, Mail, MessageSquare, Users } from 'lucide-react';
+import { AddLeadDialog } from '@/components/leads/add-lead-dialog';
 
 export default async function LeadsPage() {
   const userProfile = await requireOrganization();
@@ -58,7 +59,7 @@ export default async function LeadsPage() {
         </div>
         <div className="flex space-x-2">
           <Button variant="outline">Export Leads</Button>
-          <Button>Add Lead</Button>
+          <AddLeadDialog />
         </div>
       </div>
 
@@ -154,7 +155,7 @@ export default async function LeadsPage() {
                 Set up your Facebook Lead Ads integration to start receiving leads or add a test lead manually
               </p>
               <div className="flex space-x-2 justify-center">
-                <Button variant="outline">Add Lead</Button>
+                <AddLeadDialog variant="outline" />
                 <Button>Set Up Integration</Button>
               </div>
             </div>
