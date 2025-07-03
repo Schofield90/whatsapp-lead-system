@@ -22,7 +22,7 @@ export async function processFollowUps() {
   }
 }
 
-async function processLeadFollowUps(supabase: any) {
+async function processLeadFollowUps(supabase: Awaited<ReturnType<typeof createClient>>) {
   // Find leads that haven't responded in 24 hours
   const twentyFourHoursAgo = new Date();
   twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
@@ -52,7 +52,7 @@ async function processLeadFollowUps(supabase: any) {
   }
 }
 
-async function processBookingReminders(supabase: any) {
+async function processBookingReminders(supabase: Awaited<ReturnType<typeof createClient>>) {
   const now = new Date();
   const twentyFourHours = new Date(now.getTime() + (24 * 60 * 60 * 1000));
   const oneHour = new Date(now.getTime() + (60 * 60 * 1000));
@@ -91,7 +91,7 @@ async function processBookingReminders(supabase: any) {
   }
 }
 
-async function processNoShowFollowUps(supabase: any) {
+async function processNoShowFollowUps(supabase: Awaited<ReturnType<typeof createClient>>) {
   const now = new Date();
   const thirtyMinutesAgo = new Date(now.getTime() - (30 * 60 * 1000));
 

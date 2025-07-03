@@ -82,7 +82,7 @@ export default function OnboardingPage() {
       }
 
       router.push('/dashboard');
-    } catch (error) {
+    } catch {
       setError('An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -95,7 +95,7 @@ export default function OnboardingPage() {
         <CardHeader>
           <CardTitle>Set Up Your Organization</CardTitle>
           <CardDescription>
-            Let's get your gym set up with the lead conversion system
+            Let&apos;s get your gym set up with the lead conversion system
           </CardDescription>
         </CardHeader>
         <CardContent>

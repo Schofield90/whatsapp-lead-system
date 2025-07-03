@@ -15,7 +15,15 @@ import { useRouter } from 'next/navigation';
 import { Bell, LogOut, Settings, User } from 'lucide-react';
 
 interface HeaderProps {
-  userProfile: any;
+  userProfile: {
+    email?: string;
+    profile: {
+      name?: string;
+    };
+    user_metadata?: {
+      avatar_url?: string;
+    };
+  };
 }
 
 export function Header({ userProfile }: HeaderProps) {
@@ -27,7 +35,7 @@ export function Header({ userProfile }: HeaderProps) {
     router.push('/login');
   };
 
-  const initials = userProfile.profile.name
+  const initials = userProfile.profile?.name
     ?.split(' ')
     .map((n: string) => n[0])
     .join('')
@@ -60,10 +68,10 @@ export function Header({ userProfile }: HeaderProps) {
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-medium leading-none">
-                    {userProfile.profile.name || 'User'}
+                    {userProfile.profile?.name || 'User'}
                   </p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    {userProfile.email}
+                    {userProfile.email || 'No email'}
                   </p>
                 </div>
               </DropdownMenuLabel>

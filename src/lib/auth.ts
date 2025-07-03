@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import { Database } from '@/types/database';
 import { redirect } from 'next/navigation';
 
 export async function getUser() {

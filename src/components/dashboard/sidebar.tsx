@@ -15,7 +15,13 @@ import {
 } from 'lucide-react';
 
 interface SidebarProps {
-  userProfile: any;
+  userProfile: {
+    profile?: {
+      organization?: {
+        name?: string;
+      };
+    };
+  };
 }
 
 const navigation = [
@@ -36,7 +42,7 @@ export function Sidebar({ userProfile }: SidebarProps) {
     <div className="w-64 bg-white shadow-lg">
       <div className="p-6">
         <h2 className="text-xl font-bold text-gray-900">
-          {userProfile.profile.organization?.name || 'WhatsApp Leads'}
+          {userProfile.profile?.organization?.name || 'WhatsApp Leads'}
         </h2>
       </div>
       <nav className="mt-6">

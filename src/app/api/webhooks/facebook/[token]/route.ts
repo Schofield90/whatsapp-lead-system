@@ -5,15 +5,16 @@ import { formatPhoneNumber } from '@/lib/utils';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
+  const { token: routeToken } = await params;
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get('hub.mode');
-  const token = searchParams.get('hub.verify_token');
+  const verifyToken = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
   // Verify the webhook
-  if (mode === 'subscribe' && token === params.token) {
+  if (mode === 'subscribe' && verifyToken === routeToken) {
     console.log('Webhook verified');
     return new NextResponse(challenge);
   } else {
@@ -23,8 +24,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
+  const { token: routeToken } = await params;
   try {
     const body = await request.json();
     const supabase = await createClient();
@@ -33,7 +35,7 @@ export async function POST(
     const { data: leadSource } = await supabase
       .from('lead_sources')
       .select('*, organization:organizations(*)')
-      .eq('webhook_token', params.token)
+      .eq('webhook_token', routeToken)
       .eq('is_active', true)
       .single();
 
@@ -58,7 +60,7 @@ export async function POST(
     let phone = '';
     let email = '';
 
-    fieldData.forEach((field: any) => {
+    fieldData.forEach((field: { name: string; values: string[] }) => {
       switch (field.name.toLowerCase()) {
         case 'full_name':
         case 'name':

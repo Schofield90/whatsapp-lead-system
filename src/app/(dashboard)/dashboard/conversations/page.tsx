@@ -12,7 +12,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { formatDateTime, getRelativeTime } from '@/lib/utils';
+import { getRelativeTime } from '@/lib/utils';
 import { 
   Search, 
   Filter, 

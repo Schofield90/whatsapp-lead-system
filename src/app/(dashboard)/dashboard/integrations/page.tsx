@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -70,11 +70,7 @@ export default function IntegrationsPage() {
 
   const supabase = createClient();
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -100,12 +96,16 @@ export default function IntegrationsPage() {
 
       setIntegrations(integrationsResult.data || []);
       setLeadSources(leadSourcesResult.data || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
+    } catch {
+      console.error('Error fetching data');
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,7 +158,7 @@ export default function IntegrationsPage() {
       setEditingIntegration(null);
       setFormData({ service_name: '', credentials: {} });
       fetchData();
-    } catch (error) {
+    } catch {
       toast.error('An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -221,7 +221,7 @@ export default function IntegrationsPage() {
         toast.success('Lead source created successfully');
         fetchData();
       }
-    } catch (error) {
+    } catch {
       toast.error('An unexpected error occurred');
     }
   };

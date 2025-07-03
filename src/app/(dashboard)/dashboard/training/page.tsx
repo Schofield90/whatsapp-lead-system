@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -48,11 +47,7 @@ export default function TrainingPage() {
 
   const supabase = createClient();
 
-  useEffect(() => {
-    fetchTrainingData();
-  }, []);
-
-  const fetchTrainingData = async () => {
+  const fetchTrainingData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -81,7 +76,11 @@ export default function TrainingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchTrainingData();
+  }, [fetchTrainingData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,7 +133,7 @@ export default function TrainingPage() {
       setEditingItem(null);
       setFormData({ data_type: '', content: '' });
       fetchTrainingData();
-    } catch (error) {
+    } catch {
       toast.error('An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -205,7 +204,7 @@ export default function TrainingPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Training Data</h1>
           <p className="text-muted-foreground">
-            Configure Claude's conversation behavior with custom training data
+            Configure Claude&apos;s conversation behavior with custom training data
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -352,7 +351,7 @@ export default function TrainingPage() {
                       No {getDataTypeInfo(type).label.toLowerCase()} data
                     </h3>
                     <p className="text-gray-500 mb-4">
-                      Add training data to improve Claude's conversation abilities
+                      Add training data to improve Claude&apos;s conversation abilities
                     </p>
                     <Button onClick={() => {
                       setFormData({ data_type: type, content: '' });

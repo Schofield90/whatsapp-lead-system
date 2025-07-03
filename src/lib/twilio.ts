@@ -40,7 +40,7 @@ export async function sendWhatsAppMessage(
 export async function validateTwilioWebhook(
   signature: string,
   url: string,
-  body: Record<string, any>
+  body: Record<string, unknown>
 ) {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   

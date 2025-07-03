@@ -27,11 +27,11 @@ export function generateWebhookToken(): string {
   return CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex)
 }
 
-export function encryptCredentials(credentials: Record<string, any>, secretKey: string): string {
+export function encryptCredentials(credentials: Record<string, unknown>, secretKey: string): string {
   return CryptoJS.AES.encrypt(JSON.stringify(credentials), secretKey).toString()
 }
 
-export function decryptCredentials(encryptedCredentials: string, secretKey: string): Record<string, any> {
+export function decryptCredentials(encryptedCredentials: string, secretKey: string): Record<string, unknown> {
   const bytes = CryptoJS.AES.decrypt(encryptedCredentials, secretKey)
   return JSON.parse(bytes.toString(CryptoJS.enc.Utf8))
 }
@@ -80,7 +80,7 @@ export function isValidUrl(url: string): boolean {
   }
 }
 
-export function debounce<T extends (...args: any[]) => void>(
+export function debounce<T extends (...args: unknown[]) => void>(
   func: T,
   delay: number
 ): (...args: Parameters<T>) => void {

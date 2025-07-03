@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { sendWhatsAppMessage, validateTwilioWebhook } from '@/lib/twilio';
+import { sendWhatsAppMessage } from '@/lib/twilio';
 import { processConversationWithClaude } from '@/lib/claude';
-import { createCalendarEvent } from '@/lib/google-calendar';
 import { sendBookingConfirmation } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
-    const signature = request.headers.get('x-twilio-signature') || '';
+    // const signature = request.headers.get('x-twilio-signature') || '';
     
     // Validate Twilio webhook (simplified for now)
     // const isValid = validateTwilioWebhook(signature, request.url, parsedBody);
@@ -126,7 +125,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleBookingFlow(supabase: any, lead: any, conversation: any) {
+async function handleBookingFlow(supabase: Awaited<ReturnType<typeof createClient>>, lead: { id: string; phone: string; email?: string; name: string; organization_id: string; organization: { name: string } }, conversation: { id: string }) {
   try {
     // Get organization settings for calendar integration
     const { data: secrets } = await supabase
