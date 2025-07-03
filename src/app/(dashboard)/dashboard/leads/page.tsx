@@ -56,7 +56,10 @@ export default async function LeadsPage() {
             Manage and track all your leads from Facebook campaigns
           </p>
         </div>
-        <Button>Export Leads</Button>
+        <div className="flex space-x-2">
+          <Button variant="outline">Export Leads</Button>
+          <Button>Add Lead</Button>
+        </div>
       </div>
 
       <div className="flex items-center space-x-4">
@@ -148,9 +151,12 @@ export default async function LeadsPage() {
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No leads yet</h3>
               <p className="text-gray-500 mb-4">
-                Set up your Facebook Lead Ads integration to start receiving leads
+                Set up your Facebook Lead Ads integration to start receiving leads or add a test lead manually
               </p>
-              <Button>Set Up Integration</Button>
+              <div className="flex space-x-2 justify-center">
+                <Button variant="outline">Add Lead</Button>
+                <Button>Set Up Integration</Button>
+              </div>
             </div>
           )}
         </CardContent>
