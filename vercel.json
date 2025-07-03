@@ -4,12 +4,6 @@
       "maxDuration": 30
     }
   },
-  "crons": [
-    {
-      "path": "/api/cron/follow-ups",
-      "schedule": "0 */2 * * *"
-    }
-  ],
   "env": {
     "NEXT_PUBLIC_SUPABASE_URL": "@next_public_supabase_url",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@next_public_supabase_anon_key",
