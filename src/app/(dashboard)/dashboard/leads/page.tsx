@@ -15,6 +15,7 @@ import {
 import { getRelativeTime } from '@/lib/utils';
 import { Search, Filter, Phone, Mail, MessageSquare, Users } from 'lucide-react';
 import { AddLeadDialog } from '@/components/leads/add-lead-dialog';
+import { LeadActions } from '@/components/leads/lead-actions';
 
 export default async function LeadsPage() {
   const userProfile = await requireOrganization();
@@ -132,14 +133,7 @@ export default async function LeadsPage() {
                       }
                     </TableCell>
                     <TableCell>
-                      <div className="flex space-x-2">
-                        <Button size="sm" variant="outline">
-                          <MessageSquare className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          View
-                        </Button>
-                      </div>
+                      <LeadActions lead={lead} />
                     </TableCell>
                   </TableRow>
                 ))}
