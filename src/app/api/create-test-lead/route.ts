@@ -41,8 +41,7 @@ export async function POST(request: NextRequest) {
         name: 'Test Lead',
         phone: '+447450308627', // Your phone number
         email: 'test@example.com',
-        status: 'new',
-        source: 'whatsapp_test'
+        status: 'new'
       })
       .select()
       .single();
@@ -55,9 +54,9 @@ export async function POST(request: NextRequest) {
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .insert({
+        organization_id: organizationId,
         lead_id: lead.id,
         status: 'active',
-        platform: 'whatsapp',
         last_message_at: new Date().toISOString()
       })
       .select()
