@@ -92,14 +92,45 @@ export async function POST(request: NextRequest) {
     // If lead doesn't exist, create one
     if (!lead) {
       console.log('Creating new lead for customer:', customerPhone);
+      
+      // First, try to find or create a WhatsApp lead source
+      let { data: leadSource } = await supabase
+        .from('lead_sources')
+        .select('*')
+        .eq('organization_id', organization.id)
+        .eq('source_type', 'whatsapp')
+        .single();
+      
+      if (!leadSource) {
+        // Create WhatsApp lead source if it doesn't exist
+        const { data: newSource, error: sourceError } = await supabase
+          .from('lead_sources')
+          .insert({
+            organization_id: organization.id,
+            name: 'WhatsApp Direct',
+            source_type: 'whatsapp',
+            is_active: true
+          })
+          .select()
+          .single();
+        
+        if (sourceError) {
+          console.error('Error creating lead source:', sourceError);
+          // Continue without lead source
+        } else {
+          leadSource = newSource;
+        }
+      }
+      
       const { data: newLead, error: createError } = await supabase
         .from('leads')
         .insert({
           phone: customerPhone,
           name: 'WhatsApp User',
           organization_id: organization.id,
+          lead_source_id: leadSource?.id, // Optional
           status: 'new',
-          source: 'whatsapp'
+          metadata: { source: 'whatsapp' }
         })
         .select(`
           *,
@@ -109,7 +140,13 @@ export async function POST(request: NextRequest) {
       
       if (createError) {
         console.error('Error creating lead:', createError);
-        return new NextResponse('Failed to create lead', { status: 500 });
+        console.error('Lead data attempted:', {
+          phone: customerPhone,
+          name: 'WhatsApp User',
+          organization_id: organization.id,
+          lead_source_id: leadSource?.id
+        });
+        return new NextResponse(`Failed to create lead: ${createError.message}`, { status: 500 });
       }
       
       lead = newLead;
