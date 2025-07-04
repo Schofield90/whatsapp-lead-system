@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/twilio';
 import { processConversationWithClaude } from '@/lib/claude';
 import { sendBookingConfirmation } from '@/lib/email';
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     
     console.log('Looking for lead with phone:', from);
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     // Find the lead by phone number
     const { data: lead } = await supabase
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-async function handleBookingFlow(supabase: Awaited<ReturnType<typeof createClient>>, lead: { id: string; phone: string; email?: string; name: string; organization_id: string; organization: { name: string } }, conversation: { id: string }) {
+async function handleBookingFlow(supabase: ReturnType<typeof createServiceClient>, lead: { id: string; phone: string; email?: string; name: string; organization_id: string; organization: { name: string } }, conversation: { id: string }) {
   try {
     // Get organization settings for calendar integration
     const { data: secrets } = await supabase
