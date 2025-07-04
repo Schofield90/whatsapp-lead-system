@@ -589,6 +589,53 @@ ${result.debugNote}`;
     }
   };
 
+  const testWebhookDirect = async () => {
+    setTestingAI(true);
+    
+    try {
+      const response = await fetch('/api/test-webhook-direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: testMessage,
+          customerPhone: '+1234567890' // Test customer number
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        alert(`
+🔌 WEBHOOK DIRECT TEST:
+
+📱 TEST DETAILS:
+• Customer: ${result.testDetails.customerPhone}
+• Business: ${result.testDetails.businessPhone}
+• Message: "${result.testDetails.message}"
+
+📊 RESULT:
+• Success: ${result.success ? 'YES ✅' : 'NO ❌'}
+• Status: ${result.status}
+• Response: ${result.response}
+
+🔧 WEBHOOK URL:
+${result.testDetails.webhookUrl}
+
+${result.success ? 
+  '✅ Webhook is working! Check if AI response uses transcripts.' : 
+  '❌ Webhook failed - check error message above'}
+        `);
+      } else {
+        const error = await response.json();
+        alert(`❌ Test failed: ${error.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error testing: ${error}`);
+    } finally {
+      setTestingAI(false);
+    }
+  };
+
   const testTranscriptImpact = async () => {
     setTestingAI(true);
     
@@ -1041,6 +1088,23 @@ ${result.comparison.areDifferent ?
                     ) : (
                       <>
                         🧪 Test Transcript Impact
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    onClick={testWebhookDirect}
+                    disabled={testingAI}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {testingAI ? (
+                      <>
+                        <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        🔌 Test Webhook Direct
                       </>
                     )}
                   </Button>

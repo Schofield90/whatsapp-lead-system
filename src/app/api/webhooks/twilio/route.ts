@@ -49,23 +49,31 @@ export async function POST(request: NextRequest) {
     // First, find which organization this business number belongs to
     // You'll need to store this mapping somewhere (e.g., in organization settings)
     // For now, we'll use the first organization
-    const { data: organization } = await supabase
+    const { data: organizations, error: orgError } = await supabase
       .from('organizations')
       .select('*')
-      .limit(1)
-      .single();
+      .limit(1);
+    
+    if (orgError) {
+      console.error('Error fetching organization:', orgError);
+      return new NextResponse('Error fetching organization', { status: 500 });
+    }
+    
+    const organization = organizations?.[0];
     
     if (!organization) {
       console.log('No organization found');
       return new NextResponse('Organization not found', { status: 404 });
     }
+    
+    console.log('Using organization:', organization.id, organization.name);
 
     // Now find or create the lead for the customer (FROM number)
     const customerPhone = from;
     console.log('Looking for customer lead with phone:', customerPhone);
 
     // Try to find existing lead
-    let { data: lead } = await supabase
+    let { data: lead, error: leadError } = await supabase
       .from('leads')
       .select(`
         *,
@@ -74,6 +82,12 @@ export async function POST(request: NextRequest) {
       .eq('phone', customerPhone)
       .eq('organization_id', organization.id)
       .single();
+    
+    // If error is not "no rows", then it's a real error
+    if (leadError && leadError.code !== 'PGRST116') {
+      console.error('Error fetching lead:', leadError);
+      return new NextResponse('Error fetching lead', { status: 500 });
+    }
 
     // If lead doesn't exist, create one
     if (!lead) {
