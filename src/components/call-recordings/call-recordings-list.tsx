@@ -223,8 +223,22 @@ export function CallRecordingsList() {
         // Refresh the recordings list to show updated status
         await fetchRecordings();
       } else {
-        const error = await response.json();
-        alert(`❌ Failed to transcribe ${filename}: ${error.error || 'Unknown error'}`);
+        let errorMessage = 'Unknown error';
+        try {
+          // Try to parse as JSON first
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const error = await response.json();
+            errorMessage = error.error || error.details || 'Unknown error';
+          } else {
+            // Get raw text if not JSON
+            const rawText = await response.text();
+            errorMessage = rawText || `HTTP ${response.status}`;
+          }
+        } catch (parseError) {
+          errorMessage = `HTTP ${response.status} - Parse error`;
+        }
+        alert(`❌ Failed to transcribe ${filename}: ${errorMessage}`);
       }
     } catch (error) {
       alert(`❌ Error transcribing ${filename}: ${error}`);
