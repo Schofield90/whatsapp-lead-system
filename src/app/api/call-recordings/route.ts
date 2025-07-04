@@ -9,17 +9,9 @@ export async function GET(request: NextRequest) {
     
     const { data: recordings, error } = await supabase
       .from('call_recordings')
-      .select(`
-        *,
-        transcripts:call_transcripts(
-          id,
-          raw_transcript,
-          confidence_score,
-          language
-        )
-      `)
+      .select('*')
       .eq('organization_id', userProfile.profile.organization_id)
-      .order('upload_date', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching call recordings:', error);
