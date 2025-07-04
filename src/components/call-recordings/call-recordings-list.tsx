@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { 
   FileAudio, 
   RefreshCw, 
-  Upload
+  Upload,
+  Mic
 } from 'lucide-react';
 
 interface CallRecording {
@@ -23,6 +24,8 @@ export function CallRecordingsList() {
   const [recordings, setRecordings] = useState<CallRecording[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcriptionProgress, setTranscriptionProgress] = useState({ current: 0, total: 0 });
 
   const fetchRecordings = async () => {
     setLoading(true);
@@ -64,6 +67,80 @@ export function CallRecordingsList() {
     }
   };
 
+  const transcribeAll = async () => {
+    // Get recordings that haven't been transcribed yet
+    const untranscribedRecordings = recordings.filter(
+      recording => recording.transcription_status === 'pending' || 
+                  recording.transcription_status === 'failed' ||
+                  !recording.transcription_status
+    );
+
+    if (untranscribedRecordings.length === 0) {
+      alert('No recordings need transcription. All recordings are already transcribed or in progress.');
+      return;
+    }
+
+    const shouldProceed = confirm(
+      `This will transcribe ${untranscribedRecordings.length} recordings. This may take several minutes and will use OpenAI API credits. Continue?`
+    );
+
+    if (!shouldProceed) return;
+
+    setTranscribing(true);
+    setTranscriptionProgress({ current: 0, total: untranscribedRecordings.length });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < untranscribedRecordings.length; i++) {
+      const recording = untranscribedRecordings[i];
+      setTranscriptionProgress({ current: i + 1, total: untranscribedRecordings.length });
+
+      try {
+        const response = await fetch('/api/call-recordings/transcribe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            recordingId: recording.id
+          }),
+        });
+
+        if (response.ok) {
+          successCount++;
+          console.log(`✅ Transcribed: ${recording.original_filename}`);
+        } else {
+          failCount++;
+          const error = await response.json();
+          console.error(`❌ Failed to transcribe ${recording.original_filename}:`, error);
+        }
+      } catch (error) {
+        failCount++;
+        console.error(`❌ Error transcribing ${recording.original_filename}:`, error);
+      }
+
+      // Small delay between requests to be nice to the API
+      if (i < untranscribedRecordings.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    setTranscribing(false);
+    setTranscriptionProgress({ current: 0, total: 0 });
+
+    // Show results
+    alert(
+      `Transcription complete!\n\n` +
+      `✅ Success: ${successCount}\n` +
+      `❌ Failed: ${failCount}\n\n` +
+      `Refreshing recordings list...`
+    );
+
+    // Refresh the recordings list to show updated statuses
+    await fetchRecordings();
+  };
+
   useEffect(() => {
     fetchRecordings();
   }, []);
@@ -92,6 +169,7 @@ export function CallRecordingsList() {
                 Upload Recording
               </Button>
               <Button 
+                variant="outline"
                 onClick={syncFromStorage} 
                 disabled={syncing}
               >
@@ -132,6 +210,7 @@ export function CallRecordingsList() {
             Refresh
           </Button>
           <Button 
+            variant="outline"
             onClick={syncFromStorage} 
             disabled={syncing}
           >
@@ -141,6 +220,20 @@ export function CallRecordingsList() {
               <RefreshCw className="mr-2 h-4 w-4" />
             )}
             {syncing ? 'Syncing...' : 'Sync from Storage'}
+          </Button>
+          <Button 
+            onClick={transcribeAll} 
+            disabled={transcribing || recordings.length === 0}
+          >
+            {transcribing ? (
+              <Mic className="mr-2 h-4 w-4 animate-pulse" />
+            ) : (
+              <Mic className="mr-2 h-4 w-4" />
+            )}
+            {transcribing 
+              ? `Transcribing ${transcriptionProgress.current}/${transcriptionProgress.total}...` 
+              : 'Transcribe All'
+            }
           </Button>
         </div>
       </CardHeader>
