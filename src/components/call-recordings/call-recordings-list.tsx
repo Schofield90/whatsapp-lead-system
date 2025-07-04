@@ -7,7 +7,8 @@ import {
   FileAudio, 
   RefreshCw, 
   Upload,
-  Mic
+  Mic,
+  Download
 } from 'lucide-react';
 
 interface CallRecording {
@@ -148,15 +149,58 @@ export function CallRecordingsList() {
       const response = await fetch(`/api/call-recordings/play?id=${recording.id}`);
       if (response.ok) {
         const data = await response.json();
-        const audio = new Audio(data.url);
+        
+        // Check if browser supports the audio format
+        const audio = new Audio();
+        const canPlayWav = audio.canPlayType('audio/wav');
+        const canPlayMp3 = audio.canPlayType('audio/mpeg');
+        
+        console.log('Audio support - WAV:', canPlayWav, 'MP3:', canPlayMp3);
+        console.log('Trying to play URL:', data.url);
+        
+        // Try to load and play the audio
+        audio.src = data.url;
+        audio.load();
+        
+        audio.addEventListener('loadeddata', () => {
+          console.log('Audio loaded successfully');
+        });
+        
+        audio.addEventListener('error', (error) => {
+          console.error('Audio error:', error);
+          alert(`Audio error: ${error.message || 'Failed to load audio file'}. File format may not be supported or file may be corrupted.`);
+        });
+        
         audio.play().catch(error => {
-          alert('Error playing audio: ' + error.message);
+          console.error('Play error:', error);
+          alert(`Error playing audio: ${error.message}. Try downloading the file instead.`);
         });
       } else {
         alert('Could not get audio URL');
       }
     } catch (error) {
       alert('Error playing recording: ' + error);
+    }
+  };
+
+  const downloadRecording = async (recording: CallRecording) => {
+    try {
+      const response = await fetch(`/api/call-recordings/play?id=${recording.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Create a temporary link to trigger download
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.download = recording.original_filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        alert('Could not get download URL');
+      }
+    } catch (error) {
+      alert('Error downloading recording: ' + error);
     }
   };
 
@@ -215,6 +259,36 @@ export function CallRecordingsList() {
     } catch (error) {
       alert(`❌ Error resetting status: ${error}`);
     }
+  };
+
+  const resetAllStuck = async () => {
+    const stuckRecordings = recordings.filter(
+      recording => recording.transcription_status === 'in_progress' || 
+                  recording.status === 'transcribing'
+    );
+
+    if (stuckRecordings.length === 0) {
+      alert('No stuck recordings found');
+      return;
+    }
+
+    const shouldProceed = confirm(`Reset ${stuckRecordings.length} stuck recordings?`);
+    if (!shouldProceed) return;
+
+    for (const recording of stuckRecordings) {
+      try {
+        await fetch('/api/call-recordings/reset-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recordingId: recording.id }),
+        });
+      } catch (error) {
+        console.error('Error resetting:', recording.original_filename, error);
+      }
+    }
+
+    alert(`Reset ${stuckRecordings.length} recordings`);
+    await fetchRecordings();
   };
 
   useEffect(() => {
@@ -311,6 +385,12 @@ export function CallRecordingsList() {
               : 'Transcribe All'
             }
           </Button>
+          <Button 
+            variant="outline"
+            onClick={resetAllStuck}
+          >
+            Reset All Stuck
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -339,29 +419,36 @@ export function CallRecordingsList() {
                 >
                   Play
                 </Button>
-                {(recording.transcription_status === 'in_progress' || recording.status === 'transcribing') ? (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => downloadRecording(recording)}
+                >
+                  <Download className="mr-1 h-3 w-3" />
+                  Download
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => transcribeOne(recording.id, recording.original_filename)}
+                  disabled={transcribingIds.has(recording.id) || recording.transcription_status === 'completed'}
+                >
+                  {transcribingIds.has(recording.id) ? (
+                    <>
+                      <Mic className="mr-1 h-3 w-3 animate-pulse" />
+                      Transcribing...
+                    </>
+                  ) : (
+                    'Transcribe'
+                  )}
+                </Button>
+                {(recording.transcription_status === 'in_progress' || recording.status === 'transcribing') && (
                   <Button 
                     variant="outline" 
                     size="sm"
                     onClick={() => resetStatus(recording.id, recording.original_filename)}
                   >
-                    Reset Status
-                  </Button>
-                ) : (
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => transcribeOne(recording.id, recording.original_filename)}
-                    disabled={transcribingIds.has(recording.id) || recording.transcription_status === 'completed'}
-                  >
-                    {transcribingIds.has(recording.id) ? (
-                      <>
-                        <Mic className="mr-1 h-3 w-3 animate-pulse" />
-                        Transcribing...
-                      </>
-                    ) : (
-                      'Transcribe'
-                    )}
+                    Reset
                   </Button>
                 )}
               </div>
