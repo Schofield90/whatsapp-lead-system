@@ -424,9 +424,12 @@ export default function TrainingPage() {
                     const response = await fetch('/api/debug-recordings');
                     const result = await response.json();
                     console.log('Debug recordings:', result);
+                    alert('Raw response: ' + JSON.stringify(result, null, 2));
                     if (result.recordings) {
                       setCallRecordings(result.recordings);
                       alert('Loaded ' + result.recordings.length + ' recordings from database');
+                    } else {
+                      alert('No recordings field in response');
                     }
                   } catch (error) {
                     console.error('Error fetching recordings:', error);
