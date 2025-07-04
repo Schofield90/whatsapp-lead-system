@@ -26,6 +26,7 @@ export function CallRecordingsList() {
   const [syncing, setSyncing] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [transcriptionProgress, setTranscriptionProgress] = useState({ current: 0, total: 0 });
+  const [transcribingIds, setTranscribingIds] = useState<Set<string>>(new Set());
 
   const fetchRecordings = async () => {
     setLoading(true);
@@ -139,6 +140,39 @@ export function CallRecordingsList() {
 
     // Refresh the recordings list to show updated statuses
     await fetchRecordings();
+  };
+
+  const transcribeOne = async (recordingId: string, filename: string) => {
+    setTranscribingIds(prev => new Set(prev).add(recordingId));
+    
+    try {
+      const response = await fetch('/api/call-recordings/transcribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recordingId: recordingId
+        }),
+      });
+
+      if (response.ok) {
+        alert(`✅ Successfully transcribed: ${filename}`);
+        // Refresh the recordings list to show updated status
+        await fetchRecordings();
+      } else {
+        const error = await response.json();
+        alert(`❌ Failed to transcribe ${filename}: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      alert(`❌ Error transcribing ${filename}: ${error}`);
+    } finally {
+      setTranscribingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(recordingId);
+        return newSet;
+      });
+    }
   };
 
   useEffect(() => {
@@ -259,8 +293,20 @@ export function CallRecordingsList() {
                 <Button variant="outline" size="sm">
                   Play
                 </Button>
-                <Button variant="outline" size="sm">
-                  Transcribe
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => transcribeOne(recording.id, recording.original_filename)}
+                  disabled={transcribingIds.has(recording.id) || recording.transcription_status === 'completed' || recording.transcription_status === 'in_progress'}
+                >
+                  {transcribingIds.has(recording.id) ? (
+                    <>
+                      <Mic className="mr-1 h-3 w-3 animate-pulse" />
+                      Transcribing...
+                    </>
+                  ) : (
+                    'Transcribe'
+                  )}
                 </Button>
               </div>
             </div>
