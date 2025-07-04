@@ -142,6 +142,24 @@ export function CallRecordingsList() {
     await fetchRecordings();
   };
 
+  const playRecording = async (recording: CallRecording) => {
+    try {
+      // Get the public URL for the recording
+      const response = await fetch(`/api/call-recordings/play?id=${recording.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        const audio = new Audio(data.url);
+        audio.play().catch(error => {
+          alert('Error playing audio: ' + error.message);
+        });
+      } else {
+        alert('Could not get audio URL');
+      }
+    } catch (error) {
+      alert('Error playing recording: ' + error);
+    }
+  };
+
   const transcribeOne = async (recordingId: string, filename: string) => {
     setTranscribingIds(prev => new Set(prev).add(recordingId));
     
@@ -172,6 +190,30 @@ export function CallRecordingsList() {
         newSet.delete(recordingId);
         return newSet;
       });
+    }
+  };
+
+  const resetStatus = async (recordingId: string, filename: string) => {
+    try {
+      const response = await fetch('/api/call-recordings/reset-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recordingId: recordingId
+        }),
+      });
+
+      if (response.ok) {
+        alert(`✅ Status reset for: ${filename}`);
+        await fetchRecordings();
+      } else {
+        const error = await response.json();
+        alert(`❌ Failed to reset status: ${error.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error resetting status: ${error}`);
     }
   };
 
@@ -290,24 +332,38 @@ export function CallRecordingsList() {
                 </div>
               </div>
               <div className="flex space-x-2">
-                <Button variant="outline" size="sm">
-                  Play
-                </Button>
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => transcribeOne(recording.id, recording.original_filename)}
-                  disabled={transcribingIds.has(recording.id) || recording.transcription_status === 'completed' || recording.transcription_status === 'in_progress'}
+                  onClick={() => playRecording(recording)}
                 >
-                  {transcribingIds.has(recording.id) ? (
-                    <>
-                      <Mic className="mr-1 h-3 w-3 animate-pulse" />
-                      Transcribing...
-                    </>
-                  ) : (
-                    'Transcribe'
-                  )}
+                  Play
                 </Button>
+                {(recording.transcription_status === 'in_progress' || recording.status === 'transcribing') ? (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => resetStatus(recording.id, recording.original_filename)}
+                  >
+                    Reset Status
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => transcribeOne(recording.id, recording.original_filename)}
+                    disabled={transcribingIds.has(recording.id) || recording.transcription_status === 'completed'}
+                  >
+                    {transcribingIds.has(recording.id) ? (
+                      <>
+                        <Mic className="mr-1 h-3 w-3 animate-pulse" />
+                        Transcribing...
+                      </>
+                    ) : (
+                      'Transcribe'
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           ))}
