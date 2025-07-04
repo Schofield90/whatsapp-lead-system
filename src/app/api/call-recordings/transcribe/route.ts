@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 
+// Set a longer timeout for this API route
+export const maxDuration = 60; // 60 seconds for Pro plan, 10 for Hobby
+
 export async function POST(request: NextRequest) {
   try {
     const { recordingId } = await request.json();
@@ -77,19 +80,38 @@ export async function POST(request: NextRequest) {
         console.log('✅ Download successful with file_url');
       }
 
+      // Check file size - Whisper has a 25MB limit
+      const fileSizeMB = fileData.size / (1024 * 1024);
+      console.log(`📁 File size: ${fileSizeMB.toFixed(2)} MB`);
+      
+      if (fileSizeMB > 25) {
+        throw new Error(`File too large: ${fileSizeMB.toFixed(2)}MB. Whisper API limit is 25MB.`);
+      }
+
       // Convert blob to File object for OpenAI
       const file = new File([fileData], recording.original_filename, {
-        type: 'audio/mpeg'
+        type: 'audio/wav' // Use correct MIME type for WAV files
       });
 
-      // Transcribe with OpenAI Whisper
-      const transcription = await openai.audio.transcriptions.create({
-        file: file,
-        model: 'whisper-1',
-        language: 'en',
-        response_format: 'verbose_json',
-        timestamp_granularities: ['segment']
+      console.log('🎤 Starting Whisper transcription...');
+      
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Transcription timeout after 45 seconds')), 45000);
       });
+
+      // Race between transcription and timeout
+      const transcription = await Promise.race([
+        openai.audio.transcriptions.create({
+          file: file,
+          model: 'whisper-1',
+          language: 'en',
+          response_format: 'json' // Simpler format to reduce processing time
+        }),
+        timeoutPromise
+      ]);
+
+      console.log('✅ Transcription completed');
 
       // Store transcription
       const { data: transcript, error: transcriptError } = await supabase
@@ -99,9 +121,9 @@ export async function POST(request: NextRequest) {
           organization_id: recording.organization_id,
           raw_transcript: transcription.text,
           processed_transcript: transcription.text, // We'll process this later
-          transcript_segments: transcription.segments || [],
+          transcript_segments: [], // Simple format doesn't include segments
           confidence_score: null, // Whisper doesn't provide overall confidence
-          language: transcription.language || 'en'
+          language: 'en' // Default to English
         })
         .select()
         .single();
