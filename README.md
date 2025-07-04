@@ -2,7 +2,7 @@
 
 A complete multi-tenant Next.js application that automates lead conversion from Facebook Lead Ads to booked Google Meet calls via WhatsApp conversations powered by Claude AI.
 
-## 🎯 **Current Status: FULLY FUNCTIONAL TESTING SYSTEM** ✅
+## 🎯 **Current Status: CALL RECORDING TRAINING SYSTEM IN DEVELOPMENT** 🚧
 
 **Live Demo**: [whatsapp-lead-system.vercel.app](https://whatsapp-lead-system.vercel.app)
 
@@ -14,14 +14,27 @@ A complete multi-tenant Next.js application that automates lead conversion from 
 - **Lead management** - View lead details, send messages to specific leads
 - **Database integration** - Supabase with RLS policies working correctly
 - **API endpoints** - All core functionality accessible via REST APIs
+- **WhatsApp Integration** - Two-way messaging with production WhatsApp Business number via Twilio
+- **Call Recording Upload** - Direct Supabase Storage upload bypassing Vercel file size limits (up to 100MB+ files)
 
-### 🔧 **Recently Completed (December 2024):**
-- Fixed critical Supabase RLS infinite recursion issue
-- Added functional "Add Lead" dialogs and forms
-- Implemented working "Manual Message" and "Test Message" features
-- Created lead-specific message and view actions
-- Deployed with all environment variables configured
-- Full authentication and organization onboarding flow
+### 🔧 **Recently Completed (July 2024):**
+- **Fixed WhatsApp Integration** - Production WhatsApp Business messaging working end-to-end
+- **Implemented Direct File Upload** - Bypass Vercel 4.5MB limit using direct Supabase Storage upload
+- **Call Recording System** - Complete upload interface for training Claude on sales calls
+- **Debug Infrastructure** - Comprehensive debugging tools for troubleshooting issues
+
+### 🚧 **Current Issue Being Debugged:**
+**Call Recording Database Visibility Problem**
+- ✅ Files upload successfully to Supabase Storage (17MB+ files working)
+- ✅ Metadata API endpoints exist and functional
+- ❌ Uploaded recordings not appearing in UI despite being in database
+- 🔍 Debugging organization_id filtering and RLS policies
+
+**Debug Status:**
+- Created enhanced debug endpoints with detailed logging
+- Identified potential RLS or organization filtering issue  
+- Files physically exist in Supabase Storage bucket
+- Need to resolve metadata display and transcription trigger
 
 ## 🚀 Features
 
@@ -253,25 +266,81 @@ This project is licensed under the MIT License.
 
 ---
 
-## 🎯 **Next Steps for Production**
+## 🎯 **Next Steps & Current Priorities**
 
-### **Phase 1: Real Integrations** 
-- [ ] Connect Twilio WhatsApp Business API for real messaging
-- [ ] Set up Facebook Lead Ads webhook integration
+### **IMMEDIATE - Call Recording Debug (In Progress)**
+- [ ] **CRITICAL**: Fix call recording metadata visibility in UI
+  - Debug organization_id filtering issue
+  - Verify RLS policies for call_recordings table  
+  - Check if records exist but filtering fails
+  - Test enhanced debug endpoint with detailed logging
+- [ ] **NEXT**: Build comprehensive call recordings management interface
+  - Upload tab: File upload status and progress
+  - Transcripts tab: Review and edit transcripts
+  - Training tab: Approve content for Claude training
+  - Analytics tab: Show processing pipeline status
+
+### **Phase 1: Complete Call Recording Training System**
+- [ ] Fix transcription pipeline (OpenAI Whisper integration)
+- [ ] Implement sales training data extraction from transcripts
+- [ ] Create transcript review and approval workflow
+- [ ] Integrate processed training data into Claude's context
+- [ ] Build training data management interface
+
+### **Phase 2: Enhanced WhatsApp & Automation**
+- [ ] Set up Facebook Lead Ads webhook integration  
 - [ ] Implement Google Calendar booking system
-- [ ] Add Claude AI conversation processing
-
-### **Phase 2: Advanced Features**
-- [ ] Automated follow-up sequences
-- [ ] Advanced analytics and reporting
-- [ ] Custom conversation training per organization
-- [ ] SMS backup for WhatsApp failures
+- [ ] Add advanced Claude AI conversation flows
+- [ ] Automated follow-up sequences with training data
 
 ### **Phase 3: Scale & Optimize**
-- [ ] Performance optimization
+- [ ] Performance optimization for large file handling
 - [ ] Advanced caching strategies
 - [ ] Multi-language support
 - [ ] White-label customization
+
+---
+
+## 🐛 **Current Debugging Session Notes**
+
+### **Issue**: Call recordings upload but don't appear in UI
+**Location**: Training Data → Call Recordings tab
+**Debug Tools Available**: 
+- "Debug Database" button - shows raw database count
+- "Force Load All Recordings" button - attempts to load all records
+- Enhanced debug endpoint at `/api/debug-recordings` with console logging
+
+### **Symptoms**:
+1. Files upload successfully to Supabase Storage (confirmed in bucket)
+2. Upload shows "success" message in UI
+3. No recordings appear in the recordings list
+4. Debug shows count mismatch (54 vs 0 records)
+
+### **Investigation Steps**:
+1. ✅ Confirmed files exist in Supabase Storage bucket
+2. ✅ Created debug endpoints to check database state
+3. 🔍 **IN PROGRESS**: Enhanced debug endpoint with detailed error logging
+4. ❓ **NEXT**: Check Vercel function logs for database query details
+5. ❓ **NEXT**: Verify organization_id matching between user and recordings
+
+### **Key Files**:
+- `/src/components/training/call-recording-upload.tsx` - Upload component 
+- `/src/app/api/call-recordings/route.ts` - Metadata storage API
+- `/src/app/api/debug-recordings/route.ts` - Debug endpoint
+- `/src/app/(dashboard)/dashboard/training/page.tsx` - Main UI page
+
+### **Debug Commands for Next Session**:
+```bash
+# Check Vercel function logs
+# Go to Vercel Dashboard → Functions → /api/debug-recordings
+# Look for console.log output with 🔍 🚧 ❌ emojis
+
+# Test database directly in Supabase
+# SQL Editor: SELECT * FROM call_recordings ORDER BY created_at DESC;
+
+# Check RLS policies
+# Supabase Dashboard → Authentication → Policies → call_recordings table
+```
 
 ---
 
