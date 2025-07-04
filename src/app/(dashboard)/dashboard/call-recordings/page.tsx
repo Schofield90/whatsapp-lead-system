@@ -1,32 +1,16 @@
-import { createClient } from '@/lib/supabase/server';
 import { requireOrganization } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
-import { getRelativeTime } from '@/lib/utils';
-import { 
   Search, 
   Filter, 
-  Play, 
   FileAudio, 
   MessageSquare,
-  Download,
-  Mic,
   Clock,
-  User,
   Zap
 } from 'lucide-react';
-import { CallRecordingActions } from '@/components/call-recordings/call-recording-actions';
-import { TranscribeButton } from '@/components/call-recordings/transcribe-button';
+import { CallRecordingsList } from '@/components/call-recordings/call-recordings-list';
 
 export default async function CallRecordingsPage() {
   const userProfile = await requireOrganization();
@@ -134,32 +118,7 @@ export default async function CallRecordingsPage() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Call Recordings</CardTitle>
-          <CardDescription>
-            Recordings from consultation calls with leads
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-12">
-            <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <FileAudio className="h-12 w-12 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No recordings yet</h3>
-            <p className="text-gray-500 mb-4">
-              Call recordings will appear here when uploaded to Supabase Storage
-            </p>
-            <div className="flex space-x-2 justify-center">
-              <Button variant="outline">
-                <FileAudio className="mr-2 h-4 w-4" />
-                Upload Recording
-              </Button>
-              <Button>Sync from Storage</Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <CallRecordingsList />
     </div>
   );
 }
