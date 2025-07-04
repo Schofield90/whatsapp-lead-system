@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,6 +32,17 @@ export async function POST(request: NextRequest) {
       .eq('id', recordingId);
 
     try {
+      // Check for OpenAI API key
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OpenAI API key not configured');
+      }
+
+      // Dynamic import OpenAI to avoid build-time errors
+      const OpenAI = (await import('openai')).default;
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+
       // Get file from Supabase Storage
       const { data: fileData, error: downloadError } = await supabase.storage
         .from('call-recordings')
