@@ -418,13 +418,24 @@ export default function TrainingPage() {
             <div className="bg-red-100 border border-red-200 rounded-lg p-4">
               <p className="text-red-800 font-bold">🚨 FILE UPDATED - IF YOU SEE THIS, THE FILE IS LOADING</p>
               <button 
-                onClick={() => {
+                onClick={async () => {
                   console.log('Fetching call recordings manually...');
-                  fetchCallRecordings();
+                  try {
+                    const response = await fetch('/api/debug-recordings');
+                    const result = await response.json();
+                    console.log('Debug recordings:', result);
+                    if (result.recordings) {
+                      setCallRecordings(result.recordings);
+                      alert('Loaded ' + result.recordings.length + ' recordings from database');
+                    }
+                  } catch (error) {
+                    console.error('Error fetching recordings:', error);
+                    alert('Error: ' + (error instanceof Error ? error.message : 'Unknown'));
+                  }
                 }}
                 className="bg-red-500 text-white px-3 py-1 rounded text-sm mt-2 mr-2"
               >
-                Refresh Recordings List
+                Force Load All Recordings
               </button>
               <button 
                 onClick={async () => {
