@@ -36,15 +36,39 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Find the lead by phone number
-    const { data: lead } = await supabase
-      .from('leads')
-      .select(`
-        *,
-        organization:organizations(*)
-      `)
-      .eq('phone', from)
-      .single();
+    // Get all leads to see what phone numbers exist
+    const { data: allLeads } = await supabase.from('leads').select('phone, name');
+    console.log('All leads in database:', allLeads);
+    console.log('Searching for exact match:', from);
+
+    // Try multiple phone number formats
+    const phoneFormats = [
+      from, // Original format
+      from.replace(/^\+44/, '0'), // UK format: +447450308627 -> 07450308627
+      from.replace(/^\+44/, ''), // Without +44: +447450308627 -> 7450308627
+      `+44${from.replace(/^0/, '')}`, // Add +44 if starts with 0
+    ];
+    console.log('Trying phone formats:', phoneFormats);
+
+    // Find the lead by phone number - try multiple formats
+    let lead = null;
+    for (const phoneFormat of phoneFormats) {
+      console.log('Trying phone format:', phoneFormat);
+      const { data: foundLead } = await supabase
+        .from('leads')
+        .select(`
+          *,
+          organization:organizations(*)
+        `)
+        .eq('phone', phoneFormat)
+        .single();
+      
+      if (foundLead) {
+        console.log('Found lead with phone format:', phoneFormat);
+        lead = foundLead;
+        break;
+      }
+    }
 
     if (!lead) {
       console.log('Lead not found for phone:', from);
