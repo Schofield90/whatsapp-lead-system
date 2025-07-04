@@ -2,6 +2,12 @@
   "functions": {
     "src/app/api/**/*.ts": {
       "maxDuration": 30
+    },
+    "src/app/api/call-recordings/**/*.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/simple-test/route.ts": {
+      "maxDuration": 30
     }
   },
   "rewrites": [

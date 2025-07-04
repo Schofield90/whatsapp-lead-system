@@ -1,38 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { getUserProfile } from '@/lib/auth';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { requireOrganization } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const userProfile = await requireOrganization();
     const supabase = await createClient();
-    const userProfile = await getUserProfile();
     
-    if (!userProfile?.profile?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 401 });
-    }
-
-    // Get call recordings from storage bucket
-    const { data: files, error: storageError } = await supabase.storage
-      .from('call-recordings')
-      .list('', {
-        limit: 100,
-        sortBy: { column: 'created_at', order: 'desc' }
-      });
-
-    if (storageError) {
-      console.error('Error fetching storage files:', storageError);
-      return NextResponse.json({ error: 'Failed to fetch recordings' }, { status: 500 });
-    }
-
-    // Get call recordings metadata from database
-    const { data: recordings, error: dbError } = await supabase
+    const { data: recordings, error } = await supabase
       .from('call_recordings')
       .select(`
         *,
         transcripts:call_transcripts(
           id,
           raw_transcript,
-          processed_transcript,
           confidence_score,
           language
         )
@@ -40,80 +21,74 @@ export async function GET(request: NextRequest) {
       .eq('organization_id', userProfile.profile.organization_id)
       .order('upload_date', { ascending: false });
 
-    if (dbError) {
-      console.error('Error fetching recordings metadata:', dbError);
-      return NextResponse.json({ error: 'Failed to fetch recordings metadata' }, { status: 500 });
+    if (error) {
+      console.error('Error fetching call recordings:', error);
+      return NextResponse.json({ 
+        error: 'Failed to fetch recordings' 
+      }, { status: 500 });
     }
 
-    // Combine storage files with database metadata
-    const combinedData = files?.map(file => {
-      const metadata = recordings?.find(r => r.original_filename === file.name);
-      const transcript = metadata?.transcripts?.[0];
-      return {
-        id: metadata?.id || file.name,
-        fileName: file.name,
-        size: file.metadata?.size || metadata?.file_size,
-        lastModified: file.updated_at,
-        url: supabase.storage.from('call-recordings').getPublicUrl(file.name).data.publicUrl,
-        // Database metadata
-        uploadDate: metadata?.upload_date,
-        duration: metadata?.duration_seconds,
-        status: metadata?.status || 'unprocessed',
-        transcriptionStatus: metadata?.transcription_status || 'pending',
-        transcription: transcript?.raw_transcript,
-        processedTranscription: transcript?.processed_transcript,
-        confidence: transcript?.confidence_score,
-        language: transcript?.language
-      };
-    }) || [];
+    return NextResponse.json({
+      recordings: recordings || []
+    });
 
-    return NextResponse.json({ recordings: combinedData });
   } catch (error) {
-    console.error('Error in GET /api/call-recordings:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('API error:', error);
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const userProfile = await getUserProfile();
-    
-    if (!userProfile?.profile?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 401 });
-    }
-
+    const supabase = createServiceClient();
     const body = await request.json();
-    const { fileName, leadId, bookingId, callDate, callType = 'consultation' } = body;
+    
+    const {
+      organization_id,
+      original_filename,
+      file_url,
+      file_size,
+      duration_seconds,
+      status,
+      transcription_status
+    } = body;
 
-    if (!fileName) {
-      return NextResponse.json({ error: 'File name is required' }, { status: 400 });
-    }
+    console.log('Saving call recording metadata:', { organization_id, original_filename, file_url });
 
-    // Create metadata record for the call recording
-    const { data: recording, error } = await supabase
+    // Insert call recording metadata
+    const { data, error } = await supabase
       .from('call_recordings')
       .insert({
-        organization_id: userProfile.profile.organization_id,
-        lead_id: leadId,
-        booking_id: bookingId,
-        file_name: fileName,
-        file_path: fileName,
-        call_date: callDate || new Date().toISOString(),
-        call_type: callType,
-        status: 'recorded'
+        organization_id,
+        original_filename,
+        file_url,
+        file_size,
+        duration_seconds,
+        status,
+        transcription_status
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating call recording metadata:', error);
-      return NextResponse.json({ error: 'Failed to create recording metadata' }, { status: 500 });
+      console.error('Database error:', error);
+      return NextResponse.json({ 
+        error: 'Failed to save recording metadata',
+        details: error.message 
+      }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, recording });
+    console.log('Call recording saved successfully:', data.id);
+    return NextResponse.json({ success: true, recording: data });
+
   } catch (error) {
-    console.error('Error in POST /api/call-recordings:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('API error:', error);
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }

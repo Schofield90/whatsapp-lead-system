@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/twilio';
 import { processConversationWithClaude } from '@/lib/claude';
 import { sendBookingConfirmation } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== TWILIO WEBHOOK RECEIVED ===');
     const body = await request.text();
+    console.log('Raw webhook body:', body);
+    
     // const signature = request.headers.get('x-twilio-signature') || '';
     
     // Validate Twilio webhook (simplified for now)
@@ -16,30 +19,85 @@ export async function POST(request: NextRequest) {
     // }
 
     const params = new URLSearchParams(body);
-    const from = params.get('From')?.replace('whatsapp:', '') || '';
+    const rawFrom = params.get('From') || '';
+    const rawTo = params.get('To') || '';
+    const from = rawFrom.replace('whatsapp:', '');
+    const to = rawTo.replace('whatsapp:', '');
     const messageBody = params.get('Body') || '';
     const messageSid = params.get('MessageSid') || '';
+    
+    console.log('Parsed webhook data:', {
+      rawFrom,
+      from,
+      rawTo,
+      to,
+      messageBody,
+      messageSid,
+      allParams: Object.fromEntries(params)
+    });
+    
+    console.log('Message FROM (sender):', from);
+    console.log('Message TO (business number):', to);
 
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
-    // Find the lead by phone number
-    const { data: lead } = await supabase
-      .from('leads')
-      .select(`
-        *,
-        organization:organizations(*),
-        conversations!inner(*)
-      `)
-      .eq('phone', from)
-      .eq('conversations.status', 'active')
-      .single();
+    // Get all leads to see what phone numbers exist
+    const { data: allLeads } = await supabase.from('leads').select('phone, name');
+    console.log('All leads in database:', allLeads);
+    
+    // Look for lead with the business phone number (TO field, not FROM)
+    const businessPhone = to;
+    console.log('Looking for business phone number:', businessPhone);
+
+    // Try multiple phone number formats for the business number
+    const phoneFormats = [
+      businessPhone, // Original format
+      businessPhone.replace(/^\+44/, '0'), // UK format: +447450308627 -> 07450308627
+      businessPhone.replace(/^\+44/, ''), // Without +44: +447450308627 -> 7450308627
+      `+44${businessPhone.replace(/^0/, '')}`, // Add +44 if starts with 0
+    ];
+    console.log('Trying phone formats for business number:', phoneFormats);
+
+    // Find the lead by phone number - try multiple formats
+    let lead = null;
+    for (const phoneFormat of phoneFormats) {
+      console.log('Trying phone format:', phoneFormat);
+      const { data: foundLead } = await supabase
+        .from('leads')
+        .select(`
+          *,
+          organization:organizations(*)
+        `)
+        .eq('phone', phoneFormat)
+        .single();
+      
+      if (foundLead) {
+        console.log('Found lead with phone format:', phoneFormat);
+        lead = foundLead;
+        break;
+      }
+    }
 
     if (!lead) {
-      console.log('Lead not found for phone:', from);
+      console.log('Lead not found for business phone:', businessPhone);
+      console.log('Available leads in database:');
+      const { data: allLeads } = await supabase.from('leads').select('phone');
+      console.log('All phone numbers:', allLeads?.map(l => l.phone));
       return new NextResponse('Lead not found', { status: 404 });
     }
 
-    const conversation = lead.conversations[0];
+    // Get active conversation for this lead
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('lead_id', lead.id)
+      .eq('status', 'active')
+      .single();
+
+    if (!conversation) {
+      console.log('No active conversation found for lead:', lead.id);
+      return new NextResponse('No active conversation', { status: 404 });
+    }
 
     // Store incoming message
     await supabase
@@ -125,7 +183,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handleBookingFlow(supabase: Awaited<ReturnType<typeof createClient>>, lead: { id: string; phone: string; email?: string; name: string; organization_id: string; organization: { name: string } }, conversation: { id: string }) {
+// GET endpoint for testing webhook URL
+export async function GET(request: NextRequest) {
+  return NextResponse.json({
+    message: 'Twilio WhatsApp webhook endpoint is active and ready',
+    timestamp: new Date().toISOString(),
+    url: request.url,
+    version: '1.1'
+  });
+}
+
+async function handleBookingFlow(supabase: ReturnType<typeof createServiceClient>, lead: { id: string; phone: string; email?: string; name: string; organization_id: string; organization: { name: string } }, conversation: { id: string }) {
   try {
     // Get organization settings for calendar integration
     const { data: secrets } = await supabase

@@ -1,6 +1,6 @@
-import twilio from 'twilio';
+let twilioClient: any;
 
-export function getTwilioClient() {
+export async function getTwilioClient() {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   
@@ -8,7 +8,12 @@ export function getTwilioClient() {
     throw new Error('Twilio credentials not configured');
   }
   
-  return twilio(accountSid, authToken);
+  if (!twilioClient) {
+    const twilio = (await import('twilio')).default;
+    twilioClient = twilio(accountSid, authToken);
+  }
+  
+  return twilioClient;
 }
 
 export async function sendWhatsAppMessage(
@@ -16,7 +21,7 @@ export async function sendWhatsAppMessage(
   message: string,
   from?: string
 ) {
-  const client = getTwilioClient();
+  const client = await getTwilioClient();
   const fromNumber = from || process.env.TWILIO_WHATSAPP_NUMBER;
   
   if (!fromNumber) {
@@ -48,5 +53,6 @@ export async function validateTwilioWebhook(
     throw new Error('Twilio auth token not configured');
   }
   
+  const twilio = (await import('twilio')).default;
   return twilio.validateRequest(authToken, signature, url, body);
 }

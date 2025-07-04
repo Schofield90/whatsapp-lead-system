@@ -1,28 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { getUserProfile } from '@/lib/auth';
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createServiceClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const userProfile = await getUserProfile();
+    const { recordingId } = await request.json();
+    console.log('🎙️ Starting transcription for recording:', recordingId);
     
-    if (!userProfile?.profile?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 401 });
+    if (!recordingId) {
+      return NextResponse.json({ error: 'Recording ID required' }, { status: 400 });
     }
 
-    const body = await request.json();
-    const { recordingId, fileName } = body;
+    const supabase = createServiceClient();
+    
+    // Get recording details
+    const { data: recording, error: fetchError } = await supabase
+      .from('call_recordings')
+      .select('*')
+      .eq('id', recordingId)
+      .single();
 
-    if (!recordingId || !fileName) {
-      return NextResponse.json({ error: 'Recording ID and file name are required' }, { status: 400 });
+    if (fetchError || !recording) {
+      console.error('❌ Recording not found:', recordingId, fetchError);
+      return NextResponse.json({ error: 'Recording not found' }, { status: 404 });
     }
 
+    console.log('✅ Recording found, updating status to transcribing...');
     // Update status to transcribing
     await supabase
       .from('call_recordings')
@@ -33,111 +35,60 @@ export async function POST(request: NextRequest) {
       .eq('id', recordingId);
 
     try {
-      // Get recording details first
-      const { data: recording, error: fetchError } = await supabase
-        .from('call_recordings')
-        .select('*')
-        .eq('id', recordingId)
-        .single();
-
-      if (fetchError || !recording) {
-        throw new Error('Recording not found');
+      // Check for OpenAI API key
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OpenAI API key not configured');
       }
 
-      // Download the audio file from Supabase Storage
-      const { data: audioFile, error: downloadError } = await supabase.storage
+      // Dynamic import OpenAI to avoid build-time errors
+      const OpenAI = (await import('openai')).default;
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+
+      // Get file from Supabase Storage
+      const { data: fileData, error: downloadError } = await supabase.storage
         .from('call-recordings')
-        .download(recording.file_url || fileName);
+        .download(recording.file_url);
 
-      if (downloadError) {
-        throw new Error(`Failed to download audio file: ${downloadError.message}`);
+      if (downloadError || !fileData) {
+        throw new Error('Failed to download recording file');
       }
 
-      // Convert Blob to File for OpenAI API
-      const file = new File([audioFile], recording.original_filename, { type: 'audio/mpeg' });
+      // Convert blob to File object for OpenAI
+      const file = new File([fileData], recording.original_filename, {
+        type: 'audio/mpeg'
+      });
 
-      // Transcribe with Whisper
+      // Transcribe with OpenAI Whisper
       const transcription = await openai.audio.transcriptions.create({
         file: file,
         model: 'whisper-1',
+        language: 'en',
         response_format: 'verbose_json',
         timestamp_granularities: ['segment']
       });
 
-      // Process transcription with Claude for analysis
-      const analysisPrompt = `
-Please analyze this call transcription and provide:
-1. A concise summary (2-3 sentences)
-2. Key points discussed (bullet points)
-3. Sentiment analysis (positive/neutral/negative)
-4. Action items or next steps mentioned
-5. Lead qualification insights
-
-Transcription:
-${transcription.text}
-
-Please respond in JSON format:
-{
-  "summary": "...",
-  "keyPoints": ["...", "..."],
-  "sentiment": "positive|neutral|negative",
-  "actionItems": ["...", "..."],
-  "leadInsights": "..."
-}`;
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY!,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-3-sonnet-20240229',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: analysisPrompt
-          }]
-        })
-      });
-
-      const claudeResult = await response.json();
-      let analysis = {};
-      
-      try {
-        analysis = JSON.parse(claudeResult.content[0].text);
-      } catch (e) {
-        console.error('Failed to parse Claude response:', e);
-        analysis = {
-          summary: claudeResult.content[0].text,
-          keyPoints: [],
-          sentiment: 'neutral',
-          actionItems: [],
-          leadInsights: ''
-        };
-      }
-
-      // Save transcription to database using your schema
-      const { data: transcriptionRecord, error: saveError } = await supabase
+      // Store transcription
+      const { data: transcript, error: transcriptError } = await supabase
         .from('call_transcripts')
         .insert({
           call_recording_id: recordingId,
           organization_id: recording.organization_id,
           raw_transcript: transcription.text,
-          processed_transcript: analysis.summary || transcription.text,
-          transcript_segments: transcription.segments,
-          confidence_score: transcription.segments?.[0]?.avg_logprob || null,
-          language: transcription.language
+          processed_transcript: transcription.text, // We'll process this later
+          transcript_segments: transcription.segments || [],
+          confidence_score: null, // Whisper doesn't provide overall confidence
+          language: transcription.language || 'en'
         })
         .select()
         .single();
 
-      if (saveError) {
-        throw new Error(`Failed to save transcription: ${saveError.message}`);
+      if (transcriptError) {
+        throw new Error('Failed to save transcript: ' + transcriptError.message);
       }
 
-      // Update call recording status
+      // Update recording status
       await supabase
         .from('call_recordings')
         .update({ 
@@ -146,60 +97,30 @@ Please respond in JSON format:
         })
         .eq('id', recordingId);
 
-      // Also save sales training extracts if analysis was successful
-      if (analysis && typeof analysis === 'object') {
-        const extracts = [];
-        
-        if (analysis.keyPoints && Array.isArray(analysis.keyPoints)) {
-          extracts.push({
-            call_transcript_id: transcriptionRecord.id,
-            organization_id: recording.organization_id,
-            extract_type: 'key_points',
-            content: analysis.keyPoints.join('\n'),
-            context: 'AI-extracted key discussion points',
-            tags: ['key_points', 'discussion']
-          });
-        }
-
-        if (analysis.actionItems && Array.isArray(analysis.actionItems)) {
-          extracts.push({
-            call_transcript_id: transcriptionRecord.id,
-            organization_id: recording.organization_id,
-            extract_type: 'action_items',
-            content: analysis.actionItems.join('\n'),
-            context: 'AI-extracted action items and next steps',
-            tags: ['action_items', 'follow_up']
-          });
-        }
-
-        if (analysis.summary) {
-          extracts.push({
-            call_transcript_id: transcriptionRecord.id,
-            organization_id: recording.organization_id,
-            extract_type: 'summary',
-            content: analysis.summary,
-            context: 'AI-generated call summary',
-            tags: ['summary', 'overview']
-          });
-        }
-
-        if (extracts.length > 0) {
-          await supabase
-            .from('sales_training_extracts')
-            .insert(extracts);
-        }
+      // Trigger processing for sales training extraction
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/call-recordings/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcriptId: transcript.id })
+        });
+      } catch (error) {
+        console.error('Failed to trigger processing:', error);
       }
 
       return NextResponse.json({
         success: true,
-        transcription: transcriptionRecord,
-        analysis
+        transcript: {
+          id: transcript.id,
+          text: transcript.raw_transcript,
+          language: transcript.language
+        }
       });
 
     } catch (transcriptionError) {
       console.error('Transcription error:', transcriptionError);
       
-      // Update status to failed
+      // Update status to error
       await supabase
         .from('call_recordings')
         .update({ 
@@ -208,13 +129,17 @@ Please respond in JSON format:
         })
         .eq('id', recordingId);
 
-      return NextResponse.json({ 
-        error: `Transcription failed: ${transcriptionError.message}` 
+      return NextResponse.json({
+        error: 'Transcription failed',
+        details: transcriptionError instanceof Error ? transcriptionError.message : 'Unknown error'
       }, { status: 500 });
     }
 
   } catch (error) {
-    console.error('Error in POST /api/call-recordings/transcribe:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Transcription API error:', error);
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }

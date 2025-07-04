@@ -23,8 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { BookOpen, Plus, Edit, Trash2, MessageSquare, Target, Shield } from 'lucide-react';
+import { BookOpen, Plus, Edit, Trash2, MessageSquare, Target, Shield, Mic } from 'lucide-react';
 import { toast } from 'sonner';
+import { CallRecordingUpload } from '@/components/training/call-recording-upload';
 
 interface TrainingData {
   id: string;
@@ -37,6 +38,7 @@ interface TrainingData {
 
 export default function TrainingPage() {
   const [trainingData, setTrainingData] = useState<TrainingData[]>([]);
+  const [callRecordings, setCallRecordings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<TrainingData | null>(null);
@@ -78,9 +80,49 @@ export default function TrainingPage() {
     }
   }, [supabase]);
 
+  const fetchCallRecordings = useCallback(async () => {
+    try {
+      console.log('Fetching call recordings...');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('No user found');
+        return;
+      }
+
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!userProfile) {
+        console.log('No user profile found');
+        return;
+      }
+
+      console.log('Organization ID:', userProfile.organization_id);
+
+      const { data, error } = await supabase
+        .from('call_recordings')
+        .select('*')
+        .eq('organization_id', userProfile.organization_id)
+        .order('upload_date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching call recordings:', error);
+      } else {
+        console.log('Call recordings found:', data?.length || 0);
+        setCallRecordings(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     fetchTrainingData();
-  }, [fetchTrainingData]);
+    fetchCallRecordings();
+  }, [fetchTrainingData, fetchCallRecordings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -270,6 +312,10 @@ export default function TrainingPage() {
           <TabsTrigger value="sales_script">Sales Scripts</TabsTrigger>
           <TabsTrigger value="objection_handling">Objection Handling</TabsTrigger>
           <TabsTrigger value="qualification_criteria">Qualification Criteria</TabsTrigger>
+          <TabsTrigger value="call_recordings">
+            <Mic className="mr-2 h-4 w-4" />
+            Call Recordings
+          </TabsTrigger>
         </TabsList>
 
         {Object.entries(groupedData).map(([type, items]) => (
@@ -365,6 +411,123 @@ export default function TrainingPage() {
             </Card>
           </TabsContent>
         ))}
+
+        {/* Call Recordings Tab */}
+        <TabsContent value="call_recordings">
+          <div className="space-y-4">
+            <div className="bg-red-100 border border-red-200 rounded-lg p-4">
+              <p className="text-red-800 font-bold">🚨 FILE UPDATED - IF YOU SEE THIS, THE FILE IS LOADING</p>
+              <button 
+                onClick={async () => {
+                  console.log('Fetching call recordings manually...');
+                  try {
+                    const response = await fetch('/api/debug-recordings');
+                    const result = await response.json();
+                    console.log('Debug recordings:', result);
+                    alert('Raw response: ' + JSON.stringify(result, null, 2));
+                    if (result.recordings) {
+                      setCallRecordings(result.recordings);
+                      alert('Loaded ' + result.recordings.length + ' recordings from database');
+                    } else {
+                      alert('No recordings field in response');
+                    }
+                  } catch (error) {
+                    console.error('Error fetching recordings:', error);
+                    alert('Error: ' + (error instanceof Error ? error.message : 'Unknown'));
+                  }
+                }}
+                className="bg-red-500 text-white px-3 py-1 rounded text-sm mt-2 mr-2"
+              >
+                Force Load All Recordings
+              </button>
+              <button 
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/debug-recordings');
+                    const result = await response.json();
+                    alert('Database Debug: ' + JSON.stringify(result, null, 2));
+                  } catch (error) {
+                    alert('Debug Error: ' + (error instanceof Error ? error.message : 'Unknown'));
+                  }
+                }}
+                className="bg-purple-500 text-white px-3 py-1 rounded text-sm mt-2"
+              >
+                Debug Database
+              </button>
+            </div>
+            {/* Debug Test Button */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-sm text-yellow-800 mb-2">🔧 Debug: Test upload functionality</p>
+              <p className="text-sm text-gray-600 mb-2">Test basic API connection:</p>
+              <button
+                onClick={() => {
+                  fetch('/api/simple-test')
+                    .then(r => r.json())
+                    .then(result => alert('API Test: ' + JSON.stringify(result, null, 2)))
+                    .catch(error => alert('API Test Error: ' + error.message));
+                }}
+                className="bg-blue-500 text-white px-3 py-1 rounded text-sm mr-2"
+              >
+                Test API
+              </button>
+              <br />
+              <p className="text-sm text-gray-600 mb-2 mt-2">Test file upload:</p>
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  
+                  const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                  alert(`File selected: ${file.name} (${fileSizeMB} MB)`);
+                  console.log('Starting file upload test...');
+                  
+                  // Check file size limit (Vercel has a 4.5MB limit for hobby plan)
+                  if (file.size > 4.5 * 1024 * 1024) {
+                    alert('File too large! Maximum 4.5MB for Vercel hobby plan. Your file: ' + fileSizeMB + ' MB');
+                    return;
+                  }
+                  
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  
+                  fetch('/api/simple-test', {
+                    method: 'POST',
+                    body: formData,
+                  })
+                    .then(response => {
+                      console.log('Response received:', response.status);
+                      if (!response.ok) {
+                        // Get the actual error response
+                        return response.text().then(text => {
+                          throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+                        });
+                      }
+                      return response.json();
+                    })
+                    .then(result => {
+                      console.log('Success:', result);
+                      alert('File Upload Test SUCCESS: ' + JSON.stringify(result, null, 2));
+                    })
+                    .catch(error => {
+                      console.error('Upload error:', error);
+                      alert('File Upload Error: ' + error.message);
+                    });
+                }}
+                className="text-sm block"
+              />
+            </div>
+            
+            <CallRecordingUpload 
+              recordings={callRecordings}
+              onUploadComplete={() => {
+                fetchCallRecordings();
+                toast.success('Call recording uploaded successfully!');
+              }}
+            />
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );
