@@ -8,7 +8,8 @@ import {
   RefreshCw, 
   Upload,
   Mic,
-  Download
+  Download,
+  Zap
 } from 'lucide-react';
 
 interface CallRecording {
@@ -28,6 +29,7 @@ export function CallRecordingsList() {
   const [transcribing, setTranscribing] = useState(false);
   const [transcriptionProgress, setTranscriptionProgress] = useState({ current: 0, total: 0 });
   const [transcribingIds, setTranscribingIds] = useState<Set<string>>(new Set());
+  const [compressingIds, setCompressingIds] = useState<Set<string>>(new Set());
 
   const fetchRecordings = async () => {
     setLoading(true);
@@ -305,6 +307,61 @@ export function CallRecordingsList() {
     await fetchRecordings();
   };
 
+  const compressRecording = async (recordingId: string, filename: string) => {
+    setCompressingIds(prev => new Set(prev).add(recordingId));
+    
+    try {
+      const response = await fetch('/api/call-recordings/compress', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recordingId: recordingId
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.compressed) {
+          alert(
+            `✅ Compression successful!\n\n` +
+            `${filename}\n` +
+            `${result.originalSize.toFixed(2)}MB → ${result.compressedSize.toFixed(2)}MB\n` +
+            `${result.compressionRatio}% reduction\n\n` +
+            `File is now ready for transcription!`
+          );
+        } else {
+          alert(`ℹ️ ${result.message}`);
+        }
+        await fetchRecordings();
+      } else {
+        let errorMessage = 'Unknown error';
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const error = await response.json();
+            errorMessage = error.error || error.details || 'Unknown error';
+          } else {
+            const rawText = await response.text();
+            errorMessage = rawText || `HTTP ${response.status}`;
+          }
+        } catch (parseError) {
+          errorMessage = `HTTP ${response.status} - Parse error`;
+        }
+        alert(`❌ Failed to compress ${filename}: ${errorMessage}`);
+      }
+    } catch (error) {
+      alert(`❌ Error compressing ${filename}: ${error}`);
+    } finally {
+      setCompressingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(recordingId);
+        return newSet;
+      });
+    }
+  };
+
   useEffect(() => {
     fetchRecordings();
   }, []);
@@ -441,6 +498,26 @@ export function CallRecordingsList() {
                   <Download className="mr-1 h-3 w-3" />
                   Download
                 </Button>
+                {recording.file_size && recording.file_size > 25 * 1024 * 1024 && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => compressRecording(recording.id, recording.original_filename)}
+                    disabled={compressingIds.has(recording.id)}
+                  >
+                    {compressingIds.has(recording.id) ? (
+                      <>
+                        <Zap className="mr-1 h-3 w-3 animate-pulse" />
+                        Compressing...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="mr-1 h-3 w-3" />
+                        Compress
+                      </>
+                    )}
+                  </Button>
+                )}
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -456,22 +533,6 @@ export function CallRecordingsList() {
                     'Transcribe'
                   )}
                 </Button>
-                {recording.file_size && recording.file_size > 25 * 1024 * 1024 && (
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => alert(
-                      `Large File Detected (${Math.round(recording.file_size / 1024 / 1024)}MB)\n\n` +
-                      `For 15-minute calls, please:\n\n` +
-                      `1. Compress audio to 64kbps bitrate\n` +
-                      `2. Convert WAV to MP3 format\n` +
-                      `3. Target: <25MB file size\n\n` +
-                      `Tools: Audacity, FFmpeg, or online converters`
-                    )}
-                  >
-                    Large File Help
-                  </Button>
-                )}
                 {(recording.transcription_status === 'in_progress' || recording.status === 'transcribing') && (
                   <Button 
                     variant="outline" 
