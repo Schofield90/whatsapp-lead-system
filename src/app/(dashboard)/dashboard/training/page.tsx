@@ -417,6 +417,29 @@ export default function TrainingPage() {
           <div className="space-y-4">
             <div className="bg-red-100 border border-red-200 rounded-lg p-4">
               <p className="text-red-800 font-bold">🚨 FILE UPDATED - IF YOU SEE THIS, THE FILE IS LOADING</p>
+              <button 
+                onClick={() => {
+                  console.log('Fetching call recordings manually...');
+                  fetchCallRecordings();
+                }}
+                className="bg-red-500 text-white px-3 py-1 rounded text-sm mt-2 mr-2"
+              >
+                Refresh Recordings List
+              </button>
+              <button 
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/debug-recordings');
+                    const result = await response.json();
+                    alert('Database Debug: ' + JSON.stringify(result, null, 2));
+                  } catch (error) {
+                    alert('Debug Error: ' + (error instanceof Error ? error.message : 'Unknown'));
+                  }
+                }}
+                className="bg-purple-500 text-white px-3 py-1 rounded text-sm mt-2"
+              >
+                Debug Database
+              </button>
             </div>
             {/* Debug Test Button */}
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
