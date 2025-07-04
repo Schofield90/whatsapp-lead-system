@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, MessageCircle, Eye } from 'lucide-react';
 
 interface Lead {
   id: string;
@@ -28,6 +29,7 @@ interface LeadActionsProps {
 }
 
 export function LeadActions({ lead }: LeadActionsProps) {
+  const router = useRouter();
   const [messageOpen, setMessageOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -65,6 +67,16 @@ export function LeadActions({ lead }: LeadActionsProps) {
 
   return (
     <div className="flex space-x-2">
+      {/* View Chat Button */}
+      <Button 
+        size="sm" 
+        variant="outline"
+        onClick={() => router.push(`/dashboard/conversations?lead=${lead.id}`)}
+      >
+        <MessageCircle className="h-4 w-4 mr-2" />
+        View Chat
+      </Button>
+
       {/* Message Button */}
       <Dialog open={messageOpen} onOpenChange={setMessageOpen}>
         <DialogTrigger asChild>
@@ -102,10 +114,11 @@ export function LeadActions({ lead }: LeadActionsProps) {
         </DialogContent>
       </Dialog>
 
-      {/* View Button */}
+      {/* View Details Button */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogTrigger asChild>
           <Button size="sm" variant="outline">
+            <Eye className="h-4 w-4 mr-2" />
             View
           </Button>
         </DialogTrigger>
