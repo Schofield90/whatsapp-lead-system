@@ -37,11 +37,9 @@ export async function POST(request: NextRequest) {
       .from('leads')
       .select(`
         *,
-        organization:organizations(*),
-        conversations!inner(*)
+        organization:organizations(*)
       `)
       .eq('phone', from)
-      .eq('conversations.status', 'active')
       .single();
 
     if (!lead) {
@@ -49,7 +47,18 @@ export async function POST(request: NextRequest) {
       return new NextResponse('Lead not found', { status: 404 });
     }
 
-    const conversation = lead.conversations[0];
+    // Get active conversation for this lead
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('lead_id', lead.id)
+      .eq('status', 'active')
+      .single();
+
+    if (!conversation) {
+      console.log('No active conversation found for lead:', lead.id);
+      return new NextResponse('No active conversation', { status: 404 });
+    }
 
     // Store incoming message
     await supabase
