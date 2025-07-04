@@ -663,121 +663,130 @@ ${result.context.callTranscriptsCount > 0 ?
             Recordings from consultation calls with leads
           </CardDescription>
         </div>
-        <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
-            onClick={fetchRecordings}
-            disabled={loading}
-          >
-            {loading ? (
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
-            )}
-            Refresh
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={syncFromStorage} 
-            disabled={syncing}
-          >
-            {syncing ? (
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
-            )}
-            {syncing ? 'Syncing...' : 'Sync from Storage'}
-          </Button>
-          <Button 
-            onClick={transcribeAll} 
-            disabled={transcribing || recordings.length === 0}
-          >
-            {transcribing ? (
-              <Mic className="mr-2 h-4 w-4 animate-pulse" />
-            ) : (
-              <Mic className="mr-2 h-4 w-4" />
-            )}
-            {transcribing 
-              ? `Transcribing ${transcriptionProgress.current}/${transcriptionProgress.total}...` 
-              : 'Transcribe All'
-            }
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={resetAllStuck}
-          >
-            Reset All Stuck
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={resetAllFailed}
-          >
-            Reset All Failed
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={compressAll}
-            disabled={recordings.length === 0}
-          >
-            <Zap className="mr-2 h-4 w-4" />
-            Compress All WAV
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={checkSchema}
-            disabled={checkingSchema}
-          >
-            {checkingSchema ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Checking...
-              </>
-            ) : (
-              <>
-                🔧 Check Schema
-              </>
-            )}
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={backfillSentiment}
-            disabled={backfillingsentiment}
-          >
-            {backfillingsentiment ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                🧠 Analyze Sentiment
-              </>
-            )}
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={() => setShowAITest(!showAITest)}
-          >
-            <TestTube className="mr-2 h-4 w-4" />
-            Test AI Learning
-            {showAITest ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={debugWebhookContext}
-            disabled={debuggingWebhook}
-          >
-            {debuggingWebhook ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Debugging...
-              </>
-            ) : (
-              <>
-                🔍 Debug WhatsApp
-              </>
-            )}
-          </Button>
+        <div className="flex flex-col space-y-2">
+          {/* Primary Actions Row */}
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline" 
+              onClick={fetchRecordings}
+              disabled={loading}
+              size="sm"
+            >
+              {loading ? (
+                <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-3 w-3" />
+              )}
+              Refresh
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={syncFromStorage} 
+              disabled={syncing}
+              size="sm"
+            >
+              {syncing ? (
+                <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-3 w-3" />
+              )}
+              {syncing ? 'Syncing...' : 'Sync Storage'}
+            </Button>
+            <Button 
+              onClick={transcribeAll} 
+              disabled={transcribing || recordings.length === 0}
+              size="sm"
+            >
+              {transcribing ? (
+                <Mic className="mr-2 h-3 w-3 animate-pulse" />
+              ) : (
+                <Mic className="mr-2 h-3 w-3" />
+              )}
+              {transcribing 
+                ? `${transcriptionProgress.current}/${transcriptionProgress.total}` 
+                : 'Transcribe All'
+              }
+            </Button>
+          </div>
+          
+          {/* Secondary Actions Row */}
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline"
+              onClick={compressAll}
+              disabled={recordings.length === 0}
+              size="sm"
+            >
+              <Zap className="mr-2 h-3 w-3" />
+              Compress WAV
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={backfillSentiment}
+              disabled={backfillingsentiment}
+              size="sm"
+            >
+              {backfillingsentiment ? (
+                <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+              ) : (
+                <>🧠</>
+              )}
+              {backfillingsentiment ? 'Analyzing...' : 'Analyze Sentiment'}
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={resetAllStuck}
+              size="sm"
+            >
+              Reset Stuck
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={resetAllFailed}
+              size="sm"
+            >
+              Reset Failed
+            </Button>
+          </div>
+          
+          {/* Advanced/Debug Actions Row */}
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline"
+              onClick={() => setShowAITest(!showAITest)}
+              size="sm"
+            >
+              <TestTube className="mr-2 h-3 w-3" />
+              Test AI Learning
+              {showAITest ? <ChevronUp className="ml-1 h-3 w-3" /> : <ChevronDown className="ml-1 h-3 w-3" />}
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={debugWebhookContext}
+              disabled={debuggingWebhook}
+              size="sm"
+            >
+              {debuggingWebhook ? (
+                <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+              ) : (
+                <>🔍</>
+              )}
+              {debuggingWebhook ? 'Debugging...' : 'Debug WhatsApp'}
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={checkSchema}
+              disabled={checkingSchema}
+              size="sm"
+            >
+              {checkingSchema ? (
+                <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+              ) : (
+                <>🔧</>
+              )}
+              {checkingSchema ? 'Checking...' : 'Check Schema'}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
