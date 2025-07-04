@@ -26,21 +26,35 @@ export async function POST(request: NextRequest) {
     // Update status to transcribing
     await supabase
       .from('call_recordings')
-      .update({ status: 'transcribing' })
+      .update({ 
+        status: 'transcribing',
+        transcription_status: 'in_progress'
+      })
       .eq('id', recordingId);
 
     try {
+      // Get recording details first
+      const { data: recording, error: fetchError } = await supabase
+        .from('call_recordings')
+        .select('*')
+        .eq('id', recordingId)
+        .single();
+
+      if (fetchError || !recording) {
+        throw new Error('Recording not found');
+      }
+
       // Download the audio file from Supabase Storage
       const { data: audioFile, error: downloadError } = await supabase.storage
         .from('call-recordings')
-        .download(fileName);
+        .download(recording.file_url || fileName);
 
       if (downloadError) {
         throw new Error(`Failed to download audio file: ${downloadError.message}`);
       }
 
       // Convert Blob to File for OpenAI API
-      const file = new File([audioFile], fileName, { type: 'audio/mpeg' });
+      const file = new File([audioFile], recording.original_filename, { type: 'audio/mpeg' });
 
       // Transcribe with Whisper
       const transcription = await openai.audio.transcriptions.create({
@@ -104,22 +118,17 @@ Please respond in JSON format:
         };
       }
 
-      // Save transcription and analysis to database
+      // Save transcription to database using your schema
       const { data: transcriptionRecord, error: saveError } = await supabase
-        .from('call_transcriptions')
+        .from('call_transcripts')
         .insert({
           call_recording_id: recordingId,
-          organization_id: userProfile.profile.organization_id,
-          transcription_text: transcription.text,
+          organization_id: recording.organization_id,
+          raw_transcript: transcription.text,
+          processed_transcript: analysis.summary || transcription.text,
+          transcript_segments: transcription.segments,
           confidence_score: transcription.segments?.[0]?.avg_logprob || null,
-          language: transcription.language,
-          segments: transcription.segments,
-          summary: analysis.summary,
-          key_points: analysis.keyPoints,
-          sentiment: analysis.sentiment,
-          action_items: analysis.actionItems,
-          transcribed_at: new Date().toISOString(),
-          processed_at: new Date().toISOString()
+          language: transcription.language
         })
         .select()
         .single();
@@ -131,8 +140,55 @@ Please respond in JSON format:
       // Update call recording status
       await supabase
         .from('call_recordings')
-        .update({ status: 'transcribed' })
+        .update({ 
+          status: 'transcribed',
+          transcription_status: 'completed'
+        })
         .eq('id', recordingId);
+
+      // Also save sales training extracts if analysis was successful
+      if (analysis && typeof analysis === 'object') {
+        const extracts = [];
+        
+        if (analysis.keyPoints && Array.isArray(analysis.keyPoints)) {
+          extracts.push({
+            call_transcript_id: transcriptionRecord.id,
+            organization_id: recording.organization_id,
+            extract_type: 'key_points',
+            content: analysis.keyPoints.join('\n'),
+            context: 'AI-extracted key discussion points',
+            tags: ['key_points', 'discussion']
+          });
+        }
+
+        if (analysis.actionItems && Array.isArray(analysis.actionItems)) {
+          extracts.push({
+            call_transcript_id: transcriptionRecord.id,
+            organization_id: recording.organization_id,
+            extract_type: 'action_items',
+            content: analysis.actionItems.join('\n'),
+            context: 'AI-extracted action items and next steps',
+            tags: ['action_items', 'follow_up']
+          });
+        }
+
+        if (analysis.summary) {
+          extracts.push({
+            call_transcript_id: transcriptionRecord.id,
+            organization_id: recording.organization_id,
+            extract_type: 'summary',
+            content: analysis.summary,
+            context: 'AI-generated call summary',
+            tags: ['summary', 'overview']
+          });
+        }
+
+        if (extracts.length > 0) {
+          await supabase
+            .from('sales_training_extracts')
+            .insert(extracts);
+        }
+      }
 
       return NextResponse.json({
         success: true,
@@ -146,7 +202,10 @@ Please respond in JSON format:
       // Update status to failed
       await supabase
         .from('call_recordings')
-        .update({ status: 'failed' })
+        .update({ 
+          status: 'error',
+          transcription_status: 'failed'
+        })
         .eq('id', recordingId);
 
       return NextResponse.json({ 

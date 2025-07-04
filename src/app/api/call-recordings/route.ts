@@ -26,9 +26,19 @@ export async function GET(request: NextRequest) {
 
     // Get call recordings metadata from database
     const { data: recordings, error: dbError } = await supabase
-      .rpc('get_call_recordings_with_transcriptions', {
-        org_id: userProfile.profile.organization_id
-      });
+      .from('call_recordings')
+      .select(`
+        *,
+        transcripts:call_transcripts(
+          id,
+          raw_transcript,
+          processed_transcript,
+          confidence_score,
+          language
+        )
+      `)
+      .eq('organization_id', userProfile.profile.organization_id)
+      .order('upload_date', { ascending: false });
 
     if (dbError) {
       console.error('Error fetching recordings metadata:', dbError);
@@ -37,25 +47,23 @@ export async function GET(request: NextRequest) {
 
     // Combine storage files with database metadata
     const combinedData = files?.map(file => {
-      const metadata = recordings?.find(r => r.file_name === file.name);
+      const metadata = recordings?.find(r => r.original_filename === file.name);
+      const transcript = metadata?.transcripts?.[0];
       return {
-        id: metadata?.recording_id || file.name,
+        id: metadata?.id || file.name,
         fileName: file.name,
-        size: file.metadata?.size,
+        size: file.metadata?.size || metadata?.file_size,
         lastModified: file.updated_at,
         url: supabase.storage.from('call-recordings').getPublicUrl(file.name).data.publicUrl,
         // Database metadata
-        leadName: metadata?.lead_name,
-        leadPhone: metadata?.lead_phone,
-        callDate: metadata?.call_date,
+        uploadDate: metadata?.upload_date,
         duration: metadata?.duration_seconds,
-        callType: metadata?.call_type,
         status: metadata?.status || 'unprocessed',
-        transcription: metadata?.transcription_text,
-        summary: metadata?.summary,
-        keyPoints: metadata?.key_points,
-        sentiment: metadata?.sentiment,
-        actionItems: metadata?.action_items
+        transcriptionStatus: metadata?.transcription_status || 'pending',
+        transcription: transcript?.raw_transcript,
+        processedTranscription: transcript?.processed_transcript,
+        confidence: transcript?.confidence_score,
+        language: transcript?.language
       };
     }) || [];
 
