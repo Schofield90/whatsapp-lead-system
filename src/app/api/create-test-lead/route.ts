@@ -42,10 +42,7 @@ export async function POST(request: NextRequest) {
         phone: '+447450308627', // Your phone number
         email: 'test@example.com',
         status: 'new',
-        source: 'whatsapp_test',
-        lead_data: {
-          test: true
-        }
+        source: 'whatsapp_test'
       })
       .select()
       .single();
