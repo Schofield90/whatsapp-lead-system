@@ -47,12 +47,34 @@ export async function POST(request: NextRequest) {
       });
 
       // Get file from Supabase Storage
-      const { data: fileData, error: downloadError } = await supabase.storage
+      console.log('📥 Attempting to download file:', recording.file_url);
+      let fileData;
+      let downloadSuccess = false;
+      
+      const { data: fileData1, error: downloadError1 } = await supabase.storage
         .from('call-recordings')
         .download(recording.file_url);
 
-      if (downloadError || !fileData) {
-        throw new Error('Failed to download recording file');
+      if (downloadError1 || !fileData1) {
+        console.error('❌ Download failed with file_url:', downloadError1);
+        console.log('🔍 Trying with original_filename instead...');
+        
+        // Try with original_filename if file_url fails
+        const { data: fileData2, error: downloadError2 } = await supabase.storage
+          .from('call-recordings')
+          .download(recording.original_filename);
+          
+        if (downloadError2 || !fileData2) {
+          throw new Error(`Failed to download recording file: ${downloadError1?.message || 'Unknown error'}. Also tried original_filename: ${downloadError2?.message || 'Unknown error'}`);
+        }
+        
+        fileData = fileData2;
+        downloadSuccess = true;
+        console.log('✅ Download successful with original_filename');
+      } else {
+        fileData = fileData1;
+        downloadSuccess = true;
+        console.log('✅ Download successful with file_url');
       }
 
       // Convert blob to File object for OpenAI
