@@ -432,8 +432,15 @@ export default function TrainingPage() {
                   const file = e.target.files?.[0];
                   if (!file) return;
                   
-                  alert('File selected: ' + file.name);
+                  const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                  alert(`File selected: ${file.name} (${fileSizeMB} MB)`);
                   console.log('Starting file upload test...');
+                  
+                  // Check file size limit (Vercel has a 4.5MB limit for hobby plan)
+                  if (file.size > 4.5 * 1024 * 1024) {
+                    alert('File too large! Maximum 4.5MB for Vercel hobby plan. Your file: ' + fileSizeMB + ' MB');
+                    return;
+                  }
                   
                   const formData = new FormData();
                   formData.append('file', file);
@@ -445,7 +452,10 @@ export default function TrainingPage() {
                     .then(response => {
                       console.log('Response received:', response.status);
                       if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        // Get the actual error response
+                        return response.text().then(text => {
+                          throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+                        });
                       }
                       return response.json();
                     })
