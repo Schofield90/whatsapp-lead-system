@@ -404,13 +404,44 @@ export default function TrainingPage() {
 
         {/* Call Recordings Tab */}
         <TabsContent value="call_recordings">
-          <CallRecordingUpload 
-            recordings={callRecordings}
-            onUploadComplete={() => {
-              fetchCallRecordings();
-              toast.success('Call recording uploaded successfully!');
-            }}
-          />
+          <div className="space-y-4">
+            {/* Debug Test Button */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-sm text-yellow-800 mb-2">🔧 Debug: Test upload functionality</p>
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  
+                  try {
+                    const response = await fetch('/api/test-upload', {
+                      method: 'POST',
+                      body: formData,
+                    });
+                    
+                    const result = await response.json();
+                    alert(JSON.stringify(result, null, 2));
+                  } catch (error) {
+                    alert('Error: ' + (error instanceof Error ? error.message : 'Unknown'));
+                  }
+                }}
+                className="text-sm"
+              />
+            </div>
+            
+            <CallRecordingUpload 
+              recordings={callRecordings}
+              onUploadComplete={() => {
+                fetchCallRecordings();
+                toast.success('Call recording uploaded successfully!');
+              }}
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
