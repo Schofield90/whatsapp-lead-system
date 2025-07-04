@@ -49,35 +49,51 @@ export async function POST(request: NextRequest) {
         apiKey: process.env.OPENAI_API_KEY,
       });
 
-      // Get file from Supabase Storage
-      console.log('📥 Attempting to download file:', recording.file_url);
+      // Get file from Supabase Storage - try multiple paths
+      console.log('📥 Attempting to download file. Recording details:', {
+        file_url: recording.file_url,
+        original_filename: recording.original_filename,
+        status: recording.status
+      });
+      
       let fileData;
       let downloadSuccess = false;
+      let actualFilename = recording.original_filename;
       
-      const { data: fileData1, error: downloadError1 } = await supabase.storage
-        .from('call-recordings')
-        .download(recording.file_url);
+      // Try file_url first (might be compressed path)
+      if (recording.file_url) {
+        const { data: fileData1, error: downloadError1 } = await supabase.storage
+          .from('call-recordings')
+          .download(recording.file_url);
 
-      if (downloadError1 || !fileData1) {
-        console.error('❌ Download failed with file_url:', downloadError1);
-        console.log('🔍 Trying with original_filename instead...');
-        
-        // Try with original_filename if file_url fails
+        if (!downloadError1 && fileData1) {
+          fileData = fileData1;
+          downloadSuccess = true;
+          actualFilename = recording.file_url.split('/').pop() || recording.original_filename;
+          console.log('✅ Download successful with file_url:', recording.file_url);
+        } else {
+          console.log('⚠️ Download failed with file_url:', downloadError1?.message);
+        }
+      }
+      
+      // Try original_filename if file_url failed
+      if (!downloadSuccess) {
+        console.log('🔍 Trying with original_filename:', recording.original_filename);
         const { data: fileData2, error: downloadError2 } = await supabase.storage
           .from('call-recordings')
           .download(recording.original_filename);
           
-        if (downloadError2 || !fileData2) {
-          throw new Error(`Failed to download recording file: ${downloadError1?.message || 'Unknown error'}. Also tried original_filename: ${downloadError2?.message || 'Unknown error'}`);
+        if (!downloadError2 && fileData2) {
+          fileData = fileData2;
+          downloadSuccess = true;
+          console.log('✅ Download successful with original_filename');
+        } else {
+          console.log('❌ Download failed with original_filename:', downloadError2?.message);
         }
-        
-        fileData = fileData2;
-        downloadSuccess = true;
-        console.log('✅ Download successful with original_filename');
-      } else {
-        fileData = fileData1;
-        downloadSuccess = true;
-        console.log('✅ Download successful with file_url');
+      }
+      
+      if (!downloadSuccess || !fileData) {
+        throw new Error(`Failed to download recording file. Tried paths: ${recording.file_url}, ${recording.original_filename}`);
       }
 
       // Check file size - Whisper has a 25MB limit
@@ -94,10 +110,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Convert blob to File object for OpenAI
-      const file = new File([fileData], recording.original_filename, {
-        type: 'audio/wav' // Use correct MIME type for WAV files
+      // Convert blob to File object for OpenAI - detect correct MIME type
+      const isCompressed = actualFilename.toLowerCase().endsWith('.mp3');
+      const mimeType = isCompressed ? 'audio/mpeg' : 'audio/wav';
+      
+      const file = new File([fileData], actualFilename, {
+        type: mimeType
       });
+      
+      console.log(`🎵 File details: ${actualFilename}, ${mimeType}, ${fileSizeMB.toFixed(2)}MB`);
 
       console.log('🎤 Starting Whisper transcription...');
       
@@ -106,16 +127,46 @@ export async function POST(request: NextRequest) {
         setTimeout(() => reject(new Error('Transcription timeout after 45 seconds')), 45000);
       });
 
-      // Race between transcription and timeout
-      const transcription = await Promise.race([
-        openai.audio.transcriptions.create({
-          file: file,
-          model: 'whisper-1',
-          language: 'en',
-          response_format: 'json' // Simpler format to reduce processing time
-        }),
-        timeoutPromise
-      ]);
+      // Attempt transcription with retry logic
+      let transcription;
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          transcription = await Promise.race([
+            openai.audio.transcriptions.create({
+              file: file,
+              model: 'whisper-1',
+              language: 'en',
+              response_format: 'json'
+            }),
+            timeoutPromise
+          ]);
+          break; // Success, exit retry loop
+        } catch (error) {
+          retryCount++;
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.log(`❌ Transcription attempt ${retryCount} failed: ${errorMessage}`);
+          
+          if (retryCount > maxRetries) {
+            // Final failure - categorize the error
+            if (errorMessage.includes('timeout')) {
+              throw new Error(`Transcription timeout after ${maxRetries + 1} attempts. File may be too complex or service overloaded.`);
+            } else if (errorMessage.includes('Invalid file format') || errorMessage.includes('unsupported')) {
+              throw new Error(`Invalid audio format: ${errorMessage}. Try re-compressing the file.`);
+            } else if (errorMessage.includes('rate limit') || errorMessage.includes('quota')) {
+              throw new Error(`API quota exceeded: ${errorMessage}. Please try again later.`);
+            } else {
+              throw new Error(`Transcription failed after ${maxRetries + 1} attempts: ${errorMessage}`);
+            }
+          } else {
+            // Wait before retry
+            console.log(`⏳ Waiting 5 seconds before retry ${retryCount + 1}...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+        }
+      }
 
       console.log('✅ Transcription completed');
 

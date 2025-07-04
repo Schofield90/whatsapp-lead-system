@@ -279,6 +279,39 @@ export function CallRecordingsList() {
     await fetchRecordings();
   };
 
+  const resetAllFailed = async () => {
+    const failedRecordings = recordings.filter(
+      recording => recording.transcription_status === 'failed' || 
+                  recording.status === 'error'
+    );
+
+    if (failedRecordings.length === 0) {
+      alert('No failed recordings found');
+      return;
+    }
+
+    const shouldProceed = confirm(
+      `Reset ${failedRecordings.length} failed recordings?\n\n` +
+      `This will allow them to be retried with improved error handling.`
+    );
+    if (!shouldProceed) return;
+
+    for (const recording of failedRecordings) {
+      try {
+        await fetch('/api/call-recordings/reset-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recordingId: recording.id }),
+        });
+      } catch (error) {
+        console.error('Error resetting:', recording.original_filename, error);
+      }
+    }
+
+    alert(`Reset ${failedRecordings.length} failed recordings`);
+    await fetchRecordings();
+  };
+
   const compressAll = async () => {
     // Get recordings that might need compression (WAV files)
     const wavRecordings = recordings.filter(
@@ -507,6 +540,12 @@ export function CallRecordingsList() {
           </Button>
           <Button 
             variant="outline"
+            onClick={resetAllFailed}
+          >
+            Reset All Failed
+          </Button>
+          <Button 
+            variant="outline"
             onClick={compressAll}
             disabled={recordings.length === 0}
           >
@@ -584,7 +623,10 @@ export function CallRecordingsList() {
                     'Transcribe'
                   )}
                 </Button>
-                {(recording.transcription_status === 'in_progress' || recording.status === 'transcribing') && (
+                {(recording.transcription_status === 'in_progress' || 
+                  recording.status === 'transcribing' ||
+                  recording.transcription_status === 'failed' ||
+                  recording.status === 'error') && (
                   <Button 
                     variant="outline" 
                     size="sm"
