@@ -146,43 +146,15 @@ export function CallRecordingsList() {
   };
 
   const playRecording = async (recording: CallRecording) => {
-    try {
-      // Get the public URL for the recording
-      const response = await fetch(`/api/call-recordings/play?id=${recording.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Check if browser supports the audio format
-        const audio = new Audio();
-        const canPlayWav = audio.canPlayType('audio/wav');
-        const canPlayMp3 = audio.canPlayType('audio/mpeg');
-        
-        console.log('Audio support - WAV:', canPlayWav, 'MP3:', canPlayMp3);
-        console.log('Trying to play URL:', data.url);
-        
-        // Try to load and play the audio
-        audio.src = data.url;
-        audio.load();
-        
-        audio.addEventListener('loadeddata', () => {
-          console.log('Audio loaded successfully');
-        });
-        
-        audio.addEventListener('error', (error) => {
-          console.error('Audio error:', error);
-          alert(`Audio error: ${error.message || 'Failed to load audio file'}. File format may not be supported or file may be corrupted.`);
-        });
-        
-        audio.play().catch(error => {
-          console.error('Play error:', error);
-          alert(`Error playing audio: ${error.message}. Try downloading the file instead.`);
-        });
-      } else {
-        alert('Could not get audio URL');
-      }
-    } catch (error) {
-      alert('Error playing recording: ' + error);
-    }
+    // For now, just suggest downloading instead of trying to play in browser
+    alert(
+      `Audio Playback Not Supported\n\n` +
+      `WAV files often can't play directly in browsers.\n\n` +
+      `Please use the "Download" button to:\n` +
+      `1. Download the file to your computer\n` +
+      `2. Open with your preferred audio player\n\n` +
+      `Or try "Compress" first to convert to MP3 format.`
+    );
   };
 
   const downloadRecording = async (recording: CallRecording) => {
@@ -304,6 +276,77 @@ export function CallRecordingsList() {
     }
 
     alert(`Reset ${stuckRecordings.length} recordings`);
+    await fetchRecordings();
+  };
+
+  const compressAll = async () => {
+    // Get recordings that might need compression (WAV files)
+    const wavRecordings = recordings.filter(
+      recording => recording.original_filename.toLowerCase().endsWith('.wav') &&
+                  !recording.original_filename.includes('compressed/') &&
+                  !compressingIds.has(recording.id)
+    );
+
+    if (wavRecordings.length === 0) {
+      alert('No WAV files found to compress');
+      return;
+    }
+
+    const shouldProceed = confirm(
+      `Compress ${wavRecordings.length} WAV files?\n\n` +
+      `This will convert them to MP3 format for transcription.\n` +
+      `Process may take 5-10 minutes total.`
+    );
+
+    if (!shouldProceed) return;
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < wavRecordings.length; i++) {
+      const recording = wavRecordings[i];
+      
+      try {
+        setCompressingIds(prev => new Set(prev).add(recording.id));
+        
+        const response = await fetch('/api/call-recordings/compress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recordingId: recording.id }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          successCount++;
+          console.log(`✅ Compressed: ${recording.original_filename}`);
+        } else {
+          failCount++;
+          console.error(`❌ Failed: ${recording.original_filename}`);
+        }
+      } catch (error) {
+        failCount++;
+        console.error(`❌ Error: ${recording.original_filename}`, error);
+      } finally {
+        setCompressingIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(recording.id);
+          return newSet;
+        });
+      }
+
+      // Small delay between compressions
+      if (i < wavRecordings.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    alert(
+      `Compression Complete!\n\n` +
+      `✅ Success: ${successCount}\n` +
+      `❌ Failed: ${failCount}\n\n` +
+      `Refreshing recordings list...`
+    );
+
     await fetchRecordings();
   };
 
@@ -462,6 +505,14 @@ export function CallRecordingsList() {
           >
             Reset All Stuck
           </Button>
+          <Button 
+            variant="outline"
+            onClick={compressAll}
+            disabled={recordings.length === 0}
+          >
+            <Zap className="mr-2 h-4 w-4" />
+            Compress All WAV
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -498,7 +549,7 @@ export function CallRecordingsList() {
                   <Download className="mr-1 h-3 w-3" />
                   Download
                 </Button>
-                {(!recording.file_size || recording.file_size > 20 * 1024 * 1024) && ( // Show for >20MB or unknown size
+                {recording.original_filename.toLowerCase().endsWith('.wav') && !recording.original_filename.includes('compressed/') && ( // Show for all WAV files
                   <Button 
                     variant="outline" 
                     size="sm"
