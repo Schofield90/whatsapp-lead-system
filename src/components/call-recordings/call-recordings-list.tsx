@@ -3,13 +3,17 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { 
   FileAudio, 
   RefreshCw, 
   Upload,
   Mic,
   Download,
-  Zap
+  Zap,
+  TestTube,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 interface CallRecording {
@@ -32,6 +36,9 @@ export function CallRecordingsList() {
   const [compressingIds, setCompressingIds] = useState<Set<string>>(new Set());
   const [backfillingsentiment, setBackfillingsentiment] = useState(false);
   const [checkingSchema, setCheckingSchema] = useState(false);
+  const [testingAI, setTestingAI] = useState(false);
+  const [showAITest, setShowAITest] = useState(false);
+  const [testMessage, setTestMessage] = useState('Hi, I saw your gym online and I\'m interested in joining. Can you tell me more about your prices?');
 
   const fetchRecordings = async () => {
     setLoading(true);
@@ -379,6 +386,55 @@ export function CallRecordingsList() {
     }
   };
 
+  const testAILearning = async () => {
+    setTestingAI(true);
+    
+    try {
+      const response = await fetch('/api/test-ai-learning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testMessage }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        const learningInfo = `
+AI Learning Test Results:
+
+📊 LEARNING DATA:
+• Total transcripts: ${result.learningData.totalTranscripts}
+• Training data: ${result.learningData.trainingDataCount}
+• Sentiment breakdown: ${JSON.stringify(result.learningData.sentimentBreakdown)}
+
+💬 TEST MESSAGE:
+"${result.testMessage}"
+
+🤖 AI RESPONSE:
+"${result.aiResponse}"
+
+🎯 CALL INSIGHTS BEING USED:
+${result.callInsights.map((insight: any, i: number) => 
+  `${i + 1}. ${insight.sentiment.toUpperCase()}: ${insight.insight}`
+).join('\n')}
+
+${result.learningData.hasLearning ? 
+  '✅ AI is successfully learning from your call transcripts!' : 
+  '⚠️ No learning data available - run sentiment analysis first'
+}`;
+
+        alert(learningInfo);
+      } else {
+        const error = await response.json();
+        alert(`❌ Test failed: ${error.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error testing AI: ${error}`);
+    } finally {
+      setTestingAI(false);
+    }
+  };
+
   const compressAll = async () => {
     // Get recordings that might need compression (WAV files)
     const wavRecordings = recordings.filter(
@@ -651,9 +707,60 @@ export function CallRecordingsList() {
               </>
             )}
           </Button>
+          <Button 
+            variant="outline"
+            onClick={() => setShowAITest(!showAITest)}
+          >
+            <TestTube className="mr-2 h-4 w-4" />
+            Test AI Learning
+            {showAITest ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
+        {showAITest && (
+          <Card className="mb-6 bg-blue-50 border-blue-200">
+            <CardHeader>
+              <CardTitle className="text-lg">🧪 AI Learning Test</CardTitle>
+              <CardDescription>
+                Test how the AI responds using insights from your call transcripts
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Test Message:</label>
+                  <Input
+                    value={testMessage}
+                    onChange={(e) => setTestMessage(e.target.value)}
+                    placeholder="Enter a test customer message..."
+                    className="w-full"
+                  />
+                </div>
+                <Button 
+                  onClick={testAILearning}
+                  disabled={testingAI}
+                  className="w-full"
+                >
+                  {testingAI ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Testing AI Response...
+                    </>
+                  ) : (
+                    <>
+                      <TestTube className="mr-2 h-4 w-4" />
+                      Test AI Learning
+                    </>
+                  )}
+                </Button>
+                <div className="text-xs text-gray-600">
+                  This will show you exactly what the AI knows from your call transcripts and how it responds to customer messages.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <div className="space-y-4">
           {recordings.map((recording) => (
             <div 

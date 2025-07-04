@@ -109,8 +109,8 @@ export async function POST(request: NextRequest) {
         twilio_message_sid: messageSid,
       });
 
-    // Get conversation history and training data
-    const [messagesResult, trainingDataResult] = await Promise.all([
+    // Get conversation history, training data, and call transcripts
+    const [messagesResult, trainingDataResult, callTranscriptsResult] = await Promise.all([
       supabase
         .from('messages')
         .select('*')
@@ -121,10 +121,20 @@ export async function POST(request: NextRequest) {
         .select('*')
         .eq('organization_id', lead.organization_id)
         .eq('is_active', true),
+      supabase
+        .from('call_transcripts')
+        .select('raw_transcript, sentiment, sales_insights, created_at')
+        .eq('organization_id', lead.organization_id)
+        .not('sentiment', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(10) // Use last 10 transcripts for context
     ]);
 
     const messages = messagesResult.data || [];
     const trainingData = trainingDataResult.data || [];
+    const callTranscripts = callTranscriptsResult.data || [];
+
+    console.log(`🎯 Including ${callTranscripts.length} call transcripts in conversation context`);
 
     // Process with Claude
     const claudeResponse = await processConversationWithClaude(
@@ -134,6 +144,7 @@ export async function POST(request: NextRequest) {
         messages,
         trainingData,
         organization: lead.organization,
+        callTranscripts,
       },
       messageBody
     );
