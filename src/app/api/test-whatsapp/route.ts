@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendWhatsAppMessage } from '@/lib/twilio';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,10 +13,18 @@ export async function POST(request: NextRequest) {
     
     console.log('Attempting to send WhatsApp message to:', phone);
     
-    const result = await sendWhatsAppMessage(
-      phone,
-      message || 'Test message from WhatsApp Lead System'
+    // Use direct Twilio import like the working test
+    const twilio = (await import('twilio')).default;
+    const client = twilio(
+      process.env.TWILIO_ACCOUNT_SID,
+      process.env.TWILIO_AUTH_TOKEN
     );
+    
+    const result = await client.messages.create({
+      body: message || 'Test message from WhatsApp Lead System',
+      from: `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`,
+      to: `whatsapp:${phone}`,
+    });
     
     console.log('WhatsApp message sent successfully:', result.sid);
     

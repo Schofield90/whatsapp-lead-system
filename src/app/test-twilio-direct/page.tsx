@@ -10,7 +10,7 @@ import { Loader2 } from 'lucide-react';
 
 export default function TestTwilioDirectPage() {
   const [phone, setPhone] = useState('');
-  const [message, setMessage] = useState('Direct test from Twilio integration! 🚀');
+  const [message, setMessage] = useState('Hello! This is a test message from your gym lead system. Reply STOP to opt out.');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');

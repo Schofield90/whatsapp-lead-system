@@ -6,7 +6,10 @@ import { sendBookingConfirmation } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== TWILIO WEBHOOK RECEIVED ===');
     const body = await request.text();
+    console.log('Raw webhook body:', body);
+    
     // const signature = request.headers.get('x-twilio-signature') || '';
     
     // Validate Twilio webhook (simplified for now)
@@ -19,6 +22,13 @@ export async function POST(request: NextRequest) {
     const from = params.get('From')?.replace('whatsapp:', '') || '';
     const messageBody = params.get('Body') || '';
     const messageSid = params.get('MessageSid') || '';
+    
+    console.log('Parsed webhook data:', {
+      from,
+      messageBody,
+      messageSid,
+      allParams: Object.fromEntries(params)
+    });
 
     const supabase = await createClient();
 
@@ -123,6 +133,15 @@ export async function POST(request: NextRequest) {
     console.error('Twilio webhook error:', error);
     return new NextResponse('Internal server error', { status: 500 });
   }
+}
+
+// GET endpoint for testing webhook URL
+export async function GET(request: NextRequest) {
+  return NextResponse.json({
+    message: 'Twilio WhatsApp webhook endpoint is active',
+    timestamp: new Date().toISOString(),
+    url: request.url
+  });
 }
 
 async function handleBookingFlow(supabase: Awaited<ReturnType<typeof createClient>>, lead: { id: string; phone: string; email?: string; name: string; organization_id: string; organization: { name: string } }, conversation: { id: string }) {
