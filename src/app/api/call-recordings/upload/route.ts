@@ -51,7 +51,9 @@ export async function POST(request: NextRequest) {
     if (uploadError) {
       console.error('Upload error:', uploadError);
       return NextResponse.json({ 
-        error: 'Failed to upload file' 
+        error: 'Failed to upload file',
+        details: uploadError.message,
+        hint: 'Make sure the "call-recordings" bucket exists in Supabase Storage'
       }, { status: 500 });
     }
 

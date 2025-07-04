@@ -67,7 +67,9 @@ export function CallRecordingUpload({ recordings, onUploadComplete }: CallRecord
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
+          const errorData = await response.json().catch(() => ({}));
+          const errorMessage = errorData.details || errorData.error || `Failed to upload ${file.name}`;
+          throw new Error(errorMessage);
         }
 
         setUploadProgress(((i + 1) / audioFiles.length) * 100);
