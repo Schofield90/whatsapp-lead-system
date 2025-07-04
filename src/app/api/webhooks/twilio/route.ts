@@ -154,9 +154,10 @@ export async function POST(request: NextRequest) {
 // GET endpoint for testing webhook URL
 export async function GET(request: NextRequest) {
   return NextResponse.json({
-    message: 'Twilio WhatsApp webhook endpoint is active',
+    message: 'Twilio WhatsApp webhook endpoint is active and ready',
     timestamp: new Date().toISOString(),
-    url: request.url
+    url: request.url,
+    version: '1.1'
   });
 }
 
