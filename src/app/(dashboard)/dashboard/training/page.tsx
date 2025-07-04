@@ -23,8 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { BookOpen, Plus, Edit, Trash2, MessageSquare, Target, Shield } from 'lucide-react';
+import { BookOpen, Plus, Edit, Trash2, MessageSquare, Target, Shield, Mic } from 'lucide-react';
 import { toast } from 'sonner';
+import { CallRecordingUpload } from '@/components/training/call-recording-upload';
 
 interface TrainingData {
   id: string;
@@ -37,6 +38,7 @@ interface TrainingData {
 
 export default function TrainingPage() {
   const [trainingData, setTrainingData] = useState<TrainingData[]>([]);
+  const [callRecordings, setCallRecordings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<TrainingData | null>(null);
@@ -78,9 +80,39 @@ export default function TrainingPage() {
     }
   }, [supabase]);
 
+  const fetchCallRecordings = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!userProfile) return;
+
+      const { data, error } = await supabase
+        .from('call_recordings')
+        .select('*')
+        .eq('organization_id', userProfile.organization_id)
+        .order('upload_date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching call recordings:', error);
+      } else {
+        setCallRecordings(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     fetchTrainingData();
-  }, [fetchTrainingData]);
+    fetchCallRecordings();
+  }, [fetchTrainingData, fetchCallRecordings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -270,6 +302,10 @@ export default function TrainingPage() {
           <TabsTrigger value="sales_script">Sales Scripts</TabsTrigger>
           <TabsTrigger value="objection_handling">Objection Handling</TabsTrigger>
           <TabsTrigger value="qualification_criteria">Qualification Criteria</TabsTrigger>
+          <TabsTrigger value="call_recordings">
+            <Mic className="mr-2 h-4 w-4" />
+            Call Recordings
+          </TabsTrigger>
         </TabsList>
 
         {Object.entries(groupedData).map(([type, items]) => (
@@ -365,6 +401,17 @@ export default function TrainingPage() {
             </Card>
           </TabsContent>
         ))}
+
+        {/* Call Recordings Tab */}
+        <TabsContent value="call_recordings">
+          <CallRecordingUpload 
+            recordings={callRecordings}
+            onUploadComplete={() => {
+              fetchCallRecordings();
+              toast.success('Call recording uploaded successfully!');
+            }}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
