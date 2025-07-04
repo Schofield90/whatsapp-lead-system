@@ -95,10 +95,11 @@ export function CallRecordingUpload({ recordings, onUploadComplete }: CallRecord
           throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
         }
 
-        // Store metadata in database
-        const { error: dbError } = await supabase
-          .from('call_recordings')
-          .insert({
+        // Store metadata in database via API (to use service role)
+        const response = await fetch('/api/call-recordings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             organization_id: userProfile.organization_id,
             original_filename: file.name,
             file_url: uploadData.path,
@@ -106,13 +107,14 @@ export function CallRecordingUpload({ recordings, onUploadComplete }: CallRecord
             duration_seconds: null,
             status: 'uploaded',
             transcription_status: 'pending'
-          });
+          })
+        });
 
-        if (dbError) {
-          console.error('Database error:', dbError);
+        const dbResult = await response.json();
+        if (!response.ok) {
           // Clean up uploaded file
           await supabase.storage.from('call-recordings').remove([fileName]);
-          throw new Error(`Failed to save metadata for ${file.name}`);
+          throw new Error(`Failed to save metadata for ${file.name}: ${dbResult.error}`);
         }
 
         // Trigger transcription
