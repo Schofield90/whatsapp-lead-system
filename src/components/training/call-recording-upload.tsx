@@ -56,20 +56,75 @@ export function CallRecordingUpload({ recordings, onUploadComplete }: CallRecord
     setUploadProgress(0);
 
     try {
+      // Get the current user and organization
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('Not authenticated');
+      }
+
+      const { data: userProfile, error: profileError } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !userProfile) {
+        throw new Error('Organization not found');
+      }
+
       for (let i = 0; i < audioFiles.length; i++) {
         const file = audioFiles[i];
-        const formData = new FormData();
-        formData.append('file', file);
+        
+        // Generate unique filename
+        const timestamp = Date.now();
+        const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileName = `${userProfile.organization_id}/${timestamp}_${sanitizedName}`;
 
-        const response = await fetch('/api/call-recordings/upload', {
-          method: 'POST',
-          body: formData,
-        });
+        // Upload directly to Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('call-recordings')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.details || errorData.error || `Failed to upload ${file.name}`;
-          throw new Error(errorMessage);
+        if (uploadError) {
+          throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+        }
+
+        // Store metadata in database
+        const { error: dbError } = await supabase
+          .from('call_recordings')
+          .insert({
+            organization_id: userProfile.organization_id,
+            original_filename: file.name,
+            file_url: uploadData.path,
+            file_size: file.size,
+            duration_seconds: null,
+            status: 'uploaded',
+            transcription_status: 'pending'
+          });
+
+        if (dbError) {
+          console.error('Database error:', dbError);
+          // Clean up uploaded file
+          await supabase.storage.from('call-recordings').remove([fileName]);
+          throw new Error(`Failed to save metadata for ${file.name}`);
+        }
+
+        // Trigger transcription
+        try {
+          await fetch('/api/call-recordings/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: uploadData.path })
+          });
+        } catch (error) {
+          console.error('Failed to trigger transcription:', error);
+          // Don't fail the upload, just log the error
         }
 
         setUploadProgress(((i + 1) / audioFiles.length) * 100);
@@ -78,7 +133,7 @@ export function CallRecordingUpload({ recordings, onUploadComplete }: CallRecord
       onUploadComplete();
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Failed to upload some files. Please try again.');
+      alert(`Failed to upload files: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setUploading(false);
       setUploadProgress(0);
