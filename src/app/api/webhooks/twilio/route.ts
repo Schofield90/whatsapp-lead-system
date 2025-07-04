@@ -19,16 +19,20 @@ export async function POST(request: NextRequest) {
     // }
 
     const params = new URLSearchParams(body);
-    const from = params.get('From')?.replace('whatsapp:', '') || '';
+    const rawFrom = params.get('From') || '';
+    const from = rawFrom.replace('whatsapp:', '');
     const messageBody = params.get('Body') || '';
     const messageSid = params.get('MessageSid') || '';
     
     console.log('Parsed webhook data:', {
+      rawFrom,
       from,
       messageBody,
       messageSid,
       allParams: Object.fromEntries(params)
     });
+    
+    console.log('Looking for lead with phone:', from);
 
     const supabase = await createClient();
 
@@ -44,6 +48,9 @@ export async function POST(request: NextRequest) {
 
     if (!lead) {
       console.log('Lead not found for phone:', from);
+      console.log('Available leads in database:');
+      const { data: allLeads } = await supabase.from('leads').select('phone');
+      console.log('All phone numbers:', allLeads?.map(l => l.phone));
       return new NextResponse('Lead not found', { status: 404 });
     }
 
