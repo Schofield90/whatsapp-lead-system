@@ -20,35 +20,43 @@ export async function POST(request: NextRequest) {
 
     const params = new URLSearchParams(body);
     const rawFrom = params.get('From') || '';
+    const rawTo = params.get('To') || '';
     const from = rawFrom.replace('whatsapp:', '');
+    const to = rawTo.replace('whatsapp:', '');
     const messageBody = params.get('Body') || '';
     const messageSid = params.get('MessageSid') || '';
     
     console.log('Parsed webhook data:', {
       rawFrom,
       from,
+      rawTo,
+      to,
       messageBody,
       messageSid,
       allParams: Object.fromEntries(params)
     });
     
-    console.log('Looking for lead with phone:', from);
+    console.log('Message FROM (sender):', from);
+    console.log('Message TO (business number):', to);
 
     const supabase = createServiceClient();
 
     // Get all leads to see what phone numbers exist
     const { data: allLeads } = await supabase.from('leads').select('phone, name');
     console.log('All leads in database:', allLeads);
-    console.log('Searching for exact match:', from);
+    
+    // Look for lead with the business phone number (TO field, not FROM)
+    const businessPhone = to;
+    console.log('Looking for business phone number:', businessPhone);
 
-    // Try multiple phone number formats
+    // Try multiple phone number formats for the business number
     const phoneFormats = [
-      from, // Original format
-      from.replace(/^\+44/, '0'), // UK format: +447450308627 -> 07450308627
-      from.replace(/^\+44/, ''), // Without +44: +447450308627 -> 7450308627
-      `+44${from.replace(/^0/, '')}`, // Add +44 if starts with 0
+      businessPhone, // Original format
+      businessPhone.replace(/^\+44/, '0'), // UK format: +447450308627 -> 07450308627
+      businessPhone.replace(/^\+44/, ''), // Without +44: +447450308627 -> 7450308627
+      `+44${businessPhone.replace(/^0/, '')}`, // Add +44 if starts with 0
     ];
-    console.log('Trying phone formats:', phoneFormats);
+    console.log('Trying phone formats for business number:', phoneFormats);
 
     // Find the lead by phone number - try multiple formats
     let lead = null;
@@ -71,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!lead) {
-      console.log('Lead not found for phone:', from);
+      console.log('Lead not found for business phone:', businessPhone);
       console.log('Available leads in database:');
       const { data: allLeads } = await supabase.from('leads').select('phone');
       console.log('All phone numbers:', allLeads?.map(l => l.phone));
