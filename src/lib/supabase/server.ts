@@ -32,14 +32,20 @@ export async function createClient() {
 
 // Service role client for webhooks that need to bypass RLS
 export function createServiceClient() {
-  return createSupabaseClient<Database>(
+  const client = createSupabaseClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
       auth: {
         autoRefreshToken: false,
         persistSession: false
+      },
+      db: {
+        schema: 'public'
       }
     }
   );
+  
+  // Ensure RLS is bypassed for service role
+  return client;
 }
