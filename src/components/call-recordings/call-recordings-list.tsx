@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
 import { 
   FileAudio, 
   RefreshCw, 
@@ -24,7 +23,6 @@ export function CallRecordingsList() {
   const [recordings, setRecordings] = useState<CallRecording[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const { toast } = useToast();
 
   const fetchRecordings = async () => {
     setLoading(true);
@@ -35,18 +33,10 @@ export function CallRecordingsList() {
       if (response.ok) {
         setRecordings(data.recordings || []);
       } else {
-        toast({
-          title: 'Error',
-          description: data.error || 'Failed to fetch recordings',
-          variant: 'destructive',
-        });
+        alert('Error: ' + (data.error || 'Failed to fetch recordings'));
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch recordings',
-        variant: 'destructive',
-      });
+      alert('Error: Failed to fetch recordings');
     } finally {
       setLoading(false);
     }
@@ -61,25 +51,14 @@ export function CallRecordingsList() {
       const data = await response.json();
       
       if (response.ok) {
-        toast({
-          title: 'Sync Successful',
-          description: data.message,
-        });
+        alert('Sync Successful: ' + data.message);
         // Refresh the list after sync
         await fetchRecordings();
       } else {
-        toast({
-          title: 'Sync Failed',
-          description: data.error || 'Failed to sync from storage',
-          variant: 'destructive',
-        });
+        alert('Sync Failed: ' + (data.error || 'Failed to sync from storage'));
       }
     } catch (error) {
-      toast({
-        title: 'Sync Failed',
-        description: 'Failed to sync from storage',
-        variant: 'destructive',
-      });
+      alert('Sync Failed: Failed to sync from storage');
     } finally {
       setSyncing(false);
     }
