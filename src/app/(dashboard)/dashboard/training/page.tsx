@@ -433,6 +433,7 @@ export default function TrainingPage() {
                   if (!file) return;
                   
                   alert('File selected: ' + file.name);
+                  console.log('Starting file upload test...');
                   
                   const formData = new FormData();
                   formData.append('file', file);
@@ -441,9 +442,21 @@ export default function TrainingPage() {
                     method: 'POST',
                     body: formData,
                   })
-                    .then(r => r.json())
-                    .then(result => alert('File Upload Test: ' + JSON.stringify(result, null, 2)))
-                    .catch(error => alert('File Upload Error: ' + error.message));
+                    .then(response => {
+                      console.log('Response received:', response.status);
+                      if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                      }
+                      return response.json();
+                    })
+                    .then(result => {
+                      console.log('Success:', result);
+                      alert('File Upload Test SUCCESS: ' + JSON.stringify(result, null, 2));
+                    })
+                    .catch(error => {
+                      console.error('Upload error:', error);
+                      alert('File Upload Error: ' + error.message);
+                    });
                 }}
                 className="text-sm block"
               />
