@@ -41,53 +41,75 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Get all leads to see what phone numbers exist
-    const { data: allLeads } = await supabase.from('leads').select('phone, name');
-    console.log('All leads in database:', allLeads);
-    
-    // Look for lead with the business phone number (TO field, not FROM)
+    // Get organization by business phone number
     const businessPhone = to;
-    console.log('Looking for business phone number:', businessPhone);
+    console.log('Business phone number (TO):', businessPhone);
+    console.log('Customer phone number (FROM):', from);
+    
+    // First, find which organization this business number belongs to
+    // You'll need to store this mapping somewhere (e.g., in organization settings)
+    // For now, we'll use the first organization
+    const { data: organization } = await supabase
+      .from('organizations')
+      .select('*')
+      .limit(1)
+      .single();
+    
+    if (!organization) {
+      console.log('No organization found');
+      return new NextResponse('Organization not found', { status: 404 });
+    }
 
-    // Try multiple phone number formats for the business number
-    const phoneFormats = [
-      businessPhone, // Original format
-      businessPhone.replace(/^\+44/, '0'), // UK format: +447450308627 -> 07450308627
-      businessPhone.replace(/^\+44/, ''), // Without +44: +447450308627 -> 7450308627
-      `+44${businessPhone.replace(/^0/, '')}`, // Add +44 if starts with 0
-    ];
-    console.log('Trying phone formats for business number:', phoneFormats);
+    // Now find or create the lead for the customer (FROM number)
+    const customerPhone = from;
+    console.log('Looking for customer lead with phone:', customerPhone);
 
-    // Find the lead by phone number - try multiple formats
-    let lead = null;
-    for (const phoneFormat of phoneFormats) {
-      console.log('Trying phone format:', phoneFormat);
-      const { data: foundLead } = await supabase
+    // Try to find existing lead
+    let { data: lead } = await supabase
+      .from('leads')
+      .select(`
+        *,
+        organization:organizations(*)
+      `)
+      .eq('phone', customerPhone)
+      .eq('organization_id', organization.id)
+      .single();
+
+    // If lead doesn't exist, create one
+    if (!lead) {
+      console.log('Creating new lead for customer:', customerPhone);
+      const { data: newLead, error: createError } = await supabase
         .from('leads')
+        .insert({
+          phone: customerPhone,
+          name: 'WhatsApp User',
+          organization_id: organization.id,
+          status: 'new',
+          source: 'whatsapp'
+        })
         .select(`
           *,
           organization:organizations(*)
         `)
-        .eq('phone', phoneFormat)
         .single();
       
-      if (foundLead) {
-        console.log('Found lead with phone format:', phoneFormat);
-        lead = foundLead;
-        break;
+      if (createError) {
+        console.error('Error creating lead:', createError);
+        return new NextResponse('Failed to create lead', { status: 500 });
       }
+      
+      lead = newLead;
     }
 
-    if (!lead) {
-      console.log('Lead not found for business phone:', businessPhone);
-      console.log('Available leads in database:');
-      const { data: allLeads } = await supabase.from('leads').select('phone');
-      console.log('All phone numbers:', allLeads?.map(l => l.phone));
-      return new NextResponse('Lead not found', { status: 404 });
+    // Ensure lead has organization attached
+    if (!lead.organization) {
+      lead.organization = organization;
     }
 
-    // Get active conversation for this lead
-    const { data: conversation } = await supabase
+    console.log('Lead found/created:', lead.id, lead.name);
+
+    // Get or create active conversation for this lead
+    let { data: conversation } = await supabase
       .from('conversations')
       .select('*')
       .eq('lead_id', lead.id)
@@ -95,8 +117,24 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!conversation) {
-      console.log('No active conversation found for lead:', lead.id);
-      return new NextResponse('No active conversation', { status: 404 });
+      console.log('Creating new conversation for lead:', lead.id);
+      const { data: newConversation, error: convError } = await supabase
+        .from('conversations')
+        .insert({
+          lead_id: lead.id,
+          organization_id: organization.id,
+          status: 'active',
+          channel: 'whatsapp'
+        })
+        .select()
+        .single();
+      
+      if (convError) {
+        console.error('Error creating conversation:', convError);
+        return new NextResponse('Failed to create conversation', { status: 500 });
+      }
+      
+      conversation = newConversation;
     }
 
     // Store incoming message
