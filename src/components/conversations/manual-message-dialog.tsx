@@ -50,7 +50,7 @@ export function ManualMessageDialog({ children }: ManualMessageDialogProps) {
       // Reset form and close dialog
       setFormData({ phone: '', message: '' });
       setOpen(false);
-      alert(`✅ Message sent successfully!`);
+      alert(`Message sent successfully!`);
     } catch (error) {
       console.error('Error sending manual message:', error);
       alert('Failed to send message. Please try again.');

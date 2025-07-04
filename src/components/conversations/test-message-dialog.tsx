@@ -48,7 +48,7 @@ export function TestMessageDialog({ children }: TestMessageDialogProps) {
       const result = await response.json();
       
       setOpen(false);
-      alert(`✅ ${result.message}\n\n${result.note || ''}`);
+      alert(`${result.message}\n\n${result.note || ''}`);
     } catch (error) {
       console.error('Error sending test message:', error);
       alert('Failed to send test message. Please try again.');

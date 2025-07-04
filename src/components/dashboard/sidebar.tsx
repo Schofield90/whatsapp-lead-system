@@ -11,7 +11,8 @@ import {
   Settings,
   BarChart3,
   BookOpen,
-  Zap
+  Zap,
+  FileAudio
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +29,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Leads', href: '/dashboard/leads', icon: Users },
   { name: 'Conversations', href: '/dashboard/conversations', icon: MessageSquare },
+  { name: 'Call Recordings', href: '/dashboard/call-recordings', icon: FileAudio },
   { name: 'Bookings', href: '/dashboard/bookings', icon: Calendar },
   { name: 'Training', href: '/dashboard/training', icon: BookOpen },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },

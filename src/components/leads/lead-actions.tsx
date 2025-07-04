@@ -54,7 +54,7 @@ export function LeadActions({ lead }: LeadActionsProps) {
       }
 
       setMessageOpen(false);
-      alert(`✅ Message sent to ${lead.name}!`);
+      alert(`Message sent to ${lead.name}!`);
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Failed to send message. Please try again.');
