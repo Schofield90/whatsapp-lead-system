@@ -30,6 +30,7 @@ export function CallRecordingsList() {
   const [transcriptionProgress, setTranscriptionProgress] = useState({ current: 0, total: 0 });
   const [transcribingIds, setTranscribingIds] = useState<Set<string>>(new Set());
   const [compressingIds, setCompressingIds] = useState<Set<string>>(new Set());
+  const [backfillingsentiment, setBackfillingsentiment] = useState(false);
 
   const fetchRecordings = async () => {
     setLoading(true);
@@ -312,6 +313,42 @@ export function CallRecordingsList() {
     await fetchRecordings();
   };
 
+  const backfillSentiment = async () => {
+    const shouldProceed = confirm(
+      `This will analyze sentiment for existing transcripts using Claude AI.\n\n` +
+      `This may take a few minutes and will use Anthropic API credits. Continue?`
+    );
+
+    if (!shouldProceed) return;
+
+    setBackfillingsentiment(true);
+    
+    try {
+      const response = await fetch('/api/call-recordings/backfill-sentiment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(
+          `Sentiment Analysis Complete!\n\n` +
+          `✅ Processed: ${result.processed}\n` +
+          `❌ Failed: ${result.failed}\n\n` +
+          `${result.message}`
+        );
+        await fetchRecordings(); // Refresh to show updated stats
+      } else {
+        const error = await response.json();
+        alert(`❌ Failed to backfill sentiment: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      alert(`❌ Error running sentiment analysis: ${error}`);
+    } finally {
+      setBackfillingsentiment(false);
+    }
+  };
+
   const compressAll = async () => {
     // Get recordings that might need compression (WAV files)
     const wavRecordings = recordings.filter(
@@ -551,6 +588,22 @@ export function CallRecordingsList() {
           >
             <Zap className="mr-2 h-4 w-4" />
             Compress All WAV
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={backfillSentiment}
+            disabled={backfillingsentiment}
+          >
+            {backfillingsentiment ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                🧠 Analyze Sentiment
+              </>
+            )}
           </Button>
         </div>
       </CardHeader>

@@ -170,17 +170,74 @@ export async function POST(request: NextRequest) {
 
       console.log('✅ Transcription completed');
 
-      // Store transcription
+      // Analyze sentiment using Claude
+      console.log('🧠 Analyzing sentiment...');
+      let sentiment = 'neutral';
+      let salesInsights = null;
+      
+      try {
+        // Dynamic import for Anthropic
+        const Anthropic = (await import('@anthropic-ai/sdk')).default;
+        const anthropic = new Anthropic({
+          apiKey: process.env.ANTHROPIC_API_KEY,
+        });
+
+        const sentimentPrompt = `
+Analyze this sales call transcript for sentiment and provide key insights:
+
+TRANSCRIPT:
+${transcription.text}
+
+Provide a JSON response with:
+{
+  "sentiment": "positive|negative|neutral",
+  "confidence": 0.85,
+  "sales_insights": {
+    "key_points": "Main talking points covered",
+    "objections_raised": "Any objections mentioned",
+    "outcome": "Call outcome/next steps",
+    "effectiveness": "Overall effectiveness assessment"
+  }
+}
+
+Focus on the overall customer sentiment and sales effectiveness.`;
+
+        const sentimentResponse = await anthropic.messages.create({
+          model: 'claude-3-haiku-20240307', // Faster model for sentiment
+          max_tokens: 500,
+          messages: [{
+            role: 'user',
+            content: sentimentPrompt
+          }]
+        });
+
+        const analysisText = sentimentResponse.content[0].type === 'text' ? sentimentResponse.content[0].text : '';
+        
+        try {
+          const analysis = JSON.parse(analysisText);
+          sentiment = analysis.sentiment || 'neutral';
+          salesInsights = analysis.sales_insights || null;
+          console.log(`📊 Sentiment analysis: ${sentiment}`);
+        } catch (parseError) {
+          console.log('⚠️ Could not parse sentiment analysis, using neutral');
+        }
+      } catch (sentimentError) {
+        console.log('⚠️ Sentiment analysis failed:', sentimentError);
+      }
+
+      // Store transcription with sentiment
       const { data: transcript, error: transcriptError } = await supabase
         .from('call_transcripts')
         .insert({
           call_recording_id: recordingId,
           organization_id: recording.organization_id,
           raw_transcript: transcription.text,
-          processed_transcript: transcription.text, // We'll process this later
-          transcript_segments: [], // Simple format doesn't include segments
-          confidence_score: null, // Whisper doesn't provide overall confidence
-          language: 'en' // Default to English
+          processed_transcript: transcription.text,
+          transcript_segments: [],
+          confidence_score: null,
+          language: 'en',
+          sentiment: sentiment,
+          sales_insights: salesInsights
         })
         .select()
         .single();
@@ -219,20 +276,34 @@ export async function POST(request: NextRequest) {
       });
 
     } catch (transcriptionError) {
-      console.error('Transcription error:', transcriptionError);
+      const errorMessage = transcriptionError instanceof Error ? transcriptionError.message : 'Unknown error';
+      console.error('🚨 Transcription error for recording:', recordingId);
+      console.error('📁 Recording details:', {
+        filename: recording.original_filename,
+        file_url: recording.file_url,
+        status: recording.status,
+        transcription_status: recording.transcription_status
+      });
+      console.error('❌ Error details:', {
+        message: errorMessage,
+        stack: transcriptionError instanceof Error ? transcriptionError.stack : undefined
+      });
       
-      // Update status to error
+      // Update status to error with detailed error message
       await supabase
         .from('call_recordings')
         .update({ 
           status: 'error',
-          transcription_status: 'failed'
+          transcription_status: 'failed',
+          error_message: errorMessage.substring(0, 500) // Store first 500 chars of error
         })
         .eq('id', recordingId);
 
       return NextResponse.json({
         error: 'Transcription failed',
-        details: transcriptionError instanceof Error ? transcriptionError.message : 'Unknown error'
+        details: errorMessage,
+        recordingId: recordingId,
+        filename: recording.original_filename
       }, { status: 500 });
     }
 
