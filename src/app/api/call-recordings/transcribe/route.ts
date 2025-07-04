@@ -85,7 +85,13 @@ export async function POST(request: NextRequest) {
       console.log(`📁 File size: ${fileSizeMB.toFixed(2)} MB`);
       
       if (fileSizeMB > 25) {
-        throw new Error(`File too large: ${fileSizeMB.toFixed(2)}MB. Whisper API limit is 25MB.`);
+        // For large files, suggest alternative approach
+        throw new Error(
+          `File too large: ${fileSizeMB.toFixed(2)}MB (limit: 25MB). ` +
+          `For 15-minute calls, consider: 1) Compress audio to lower bitrate, ` +
+          `2) Split into chunks, or 3) Use a different transcription service. ` +
+          `Typical 15-min calls should be compressed to <25MB before transcription.`
+        );
       }
 
       // Convert blob to File object for OpenAI

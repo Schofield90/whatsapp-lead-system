@@ -456,6 +456,22 @@ export function CallRecordingsList() {
                     'Transcribe'
                   )}
                 </Button>
+                {recording.file_size && recording.file_size > 25 * 1024 * 1024 && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => alert(
+                      `Large File Detected (${Math.round(recording.file_size / 1024 / 1024)}MB)\n\n` +
+                      `For 15-minute calls, please:\n\n` +
+                      `1. Compress audio to 64kbps bitrate\n` +
+                      `2. Convert WAV to MP3 format\n` +
+                      `3. Target: <25MB file size\n\n` +
+                      `Tools: Audacity, FFmpeg, or online converters`
+                    )}
+                  >
+                    Large File Help
+                  </Button>
+                )}
                 {(recording.transcription_status === 'in_progress' || recording.status === 'transcribing') && (
                   <Button 
                     variant="outline" 
