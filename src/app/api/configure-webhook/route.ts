@@ -29,14 +29,18 @@ export async function POST(request: NextRequest) {
     const updatedNumber = await client.incomingPhoneNumbers(phoneNumber.sid)
       .update({
         smsUrl: webhookUrl,
-        smsMethod: 'POST'
+        smsMethod: 'POST',
+        voiceUrl: webhookUrl,
+        voiceMethod: 'POST'
       });
     
     return NextResponse.json({
       success: true,
       phoneNumber: updatedNumber.phoneNumber,
-      webhookUrl: updatedNumber.smsUrl,
-      method: updatedNumber.smsMethod,
+      smsWebhookUrl: updatedNumber.smsUrl,
+      smsMethod: updatedNumber.smsMethod,
+      voiceWebhookUrl: updatedNumber.voiceUrl,
+      voiceMethod: updatedNumber.voiceMethod,
       sid: updatedNumber.sid
     });
     
