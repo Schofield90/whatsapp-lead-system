@@ -13,7 +13,8 @@ import {
   Zap,
   TestTube,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  MessageCircle
 } from 'lucide-react';
 
 interface CallRecording {
@@ -533,6 +534,61 @@ Compare this response with your WhatsApp test to see differences.`;
     }
   };
 
+  const viewConversations = () => {
+    window.open('/dashboard/conversations', '_blank');
+  };
+
+  const debugComparePrompts = async () => {
+    setTestingAI(true);
+    
+    try {
+      const response = await fetch('/api/debug-compare-prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testMessage }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        const debugInfo = `
+🔍 SYSTEM PROMPT COMPARISON:
+
+📊 CONTEXT:
+• Organization ID: ${result.context.organizationId}
+• Call transcripts: ${result.context.callTranscriptsCount}
+• Training data: ${result.context.trainingDataCount}
+
+📝 SYSTEM PROMPT ANALYSIS:
+• Total length: ${result.systemPrompt.length} characters
+• Has call insights: ${result.systemPrompt.hasCallInsights ? 'YES ✅' : 'NO ❌'}
+
+🎯 CALL TRANSCRIPTS DATA:
+• Total: ${result.callTranscripts.total}
+• Sentiment breakdown: ${JSON.stringify(result.callTranscripts.sentimentBreakdown)}
+
+📋 INSIGHTS SECTION:
+${result.systemPrompt.insightsSection}
+
+🔧 CALL TRANSCRIPT SAMPLES:
+${result.callTranscripts.sampleData.map((t: any, i: number) => 
+  `${i + 1}. ${t.sentiment.toUpperCase()}: ${t.transcriptLength} chars, insights: ${t.hasInsights ? 'YES' : 'NO'}`
+).join('\n')}
+
+${result.debugNote}`;
+
+        alert(debugInfo);
+      } else {
+        const error = await response.json();
+        alert(`❌ Debug failed: ${error.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error debugging: ${error}`);
+    } finally {
+      setTestingAI(false);
+    }
+  };
+
   const compressAll = async () => {
     // Get recordings that might need compression (WAV files)
     const wavRecordings = recordings.filter(
@@ -837,6 +893,14 @@ Compare this response with your WhatsApp test to see differences.`;
               )}
               {checkingSchema ? 'Checking...' : 'Check Schema'}
             </Button>
+            <Button 
+              variant="outline"
+              onClick={viewConversations}
+              size="sm"
+            >
+              <MessageCircle className="mr-2 h-3 w-3" />
+              View Chat
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -890,6 +954,25 @@ Compare this response with your WhatsApp test to see differences.`;
                     ) : (
                       <>
                         🔍 Debug Prompt
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <Button 
+                    onClick={debugComparePrompts}
+                    disabled={testingAI}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {testingAI ? (
+                      <>
+                        <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+                        Compare...
+                      </>
+                    ) : (
+                      <>
+                        🔬 Compare System Prompts
                       </>
                     )}
                   </Button>

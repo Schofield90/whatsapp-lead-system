@@ -206,8 +206,25 @@ Guidelines:
     hasCallTranscripts: callTranscripts && callTranscripts.length > 0,
     callTranscriptsCount: callTranscripts?.length || 0,
     includesInsights: systemPrompt.includes('CALL TRANSCRIPTION INSIGHTS'),
-    promptPreview: systemPrompt.substring(0, 300) + '...'
+    promptPreview: systemPrompt.substring(0, 300) + '...',
+    fullPrompt: systemPrompt // Log full prompt for debugging
   });
+
+  // Extra debug logging
+  if (callTranscripts && callTranscripts.length > 0) {
+    console.log('📝 Call transcripts in system prompt:', {
+      totalTranscripts: callTranscripts.length,
+      sentimentBreakdown: callTranscripts.reduce((acc, t) => {
+        acc[t.sentiment || 'unknown'] = (acc[t.sentiment || 'unknown'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      sampleTranscripts: callTranscripts.slice(0, 3).map(t => ({
+        sentiment: t.sentiment,
+        hasInsights: !!t.sales_insights,
+        length: t.raw_transcript.length
+      }))
+    });
+  }
 
   return systemPrompt;
 }
