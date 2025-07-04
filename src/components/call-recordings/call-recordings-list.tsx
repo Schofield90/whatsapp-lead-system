@@ -482,6 +482,57 @@ ${result.context.callTranscriptsCount > 0 ?
     }
   };
 
+  const debugSystemPrompt = async () => {
+    setTestingAI(true);
+    
+    try {
+      const response = await fetch('/api/debug-system-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testMessage }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        const debugInfo = `
+🔍 SYSTEM PROMPT DEBUG:
+
+📊 CONTEXT:
+• Organization ID: ${result.context.organizationId}
+• Call transcripts: ${result.context.callTranscriptsCount}
+• Training data: ${result.context.trainingDataCount}
+
+📈 SENTIMENT BREAKDOWN:
+${JSON.stringify(result.sentimentBreakdown, null, 2)}
+
+💬 TEST MESSAGE:
+"${result.testMessage}"
+
+🤖 AI RESPONSE:
+"${result.aiResponse}"
+
+🎯 TRANSCRIPT ANALYSIS:
+${result.transcriptAnalysis.map((t: any, i: number) => 
+  `${i + 1}. ${t.sentiment.toUpperCase()} (${t.transcriptLength} chars, insights: ${t.hasInsights})`
+).join('\n')}
+
+${result.debugNote}
+
+Compare this response with your WhatsApp test to see differences.`;
+
+        alert(debugInfo);
+      } else {
+        const error = await response.json();
+        alert(`❌ Debug failed: ${error.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error debugging: ${error}`);
+    } finally {
+      setTestingAI(false);
+    }
+  };
+
   const compressAll = async () => {
     // Get recordings that might need compression (WAV files)
     const wavRecordings = recordings.filter(
@@ -809,23 +860,40 @@ ${result.context.callTranscriptsCount > 0 ?
                     className="w-full"
                   />
                 </div>
-                <Button 
-                  onClick={testAILearning}
-                  disabled={testingAI}
-                  className="w-full"
-                >
-                  {testingAI ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Testing AI Response...
-                    </>
-                  ) : (
-                    <>
-                      <TestTube className="mr-2 h-4 w-4" />
-                      Test AI Learning
-                    </>
-                  )}
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    onClick={testAILearning}
+                    disabled={testingAI}
+                  >
+                    {testingAI ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <TestTube className="mr-2 h-4 w-4" />
+                        Test AI
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    onClick={debugSystemPrompt}
+                    disabled={testingAI}
+                    variant="outline"
+                  >
+                    {testingAI ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Debug...
+                      </>
+                    ) : (
+                      <>
+                        🔍 Debug Prompt
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <div className="text-xs text-gray-600">
                   This will show you exactly what the AI knows from your call transcripts and how it responds to customer messages.
                 </div>
