@@ -589,6 +589,57 @@ ${result.debugNote}`;
     }
   };
 
+  const testTranscriptImpact = async () => {
+    setTestingAI(true);
+    
+    try {
+      const response = await fetch('/api/test-transcript-impact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testMessage }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        const debugInfo = `
+🧪 TRANSCRIPT IMPACT TEST:
+
+💬 TEST MESSAGE:
+"${result.testMessage}"
+
+📊 CONTEXT:
+• Organization ID: ${result.context.organizationId}
+• Call transcripts used: ${result.context.callTranscriptsCount}
+• Training data: ${result.context.trainingDataCount}
+
+🤖 AI RESPONSE WITH TRANSCRIPTS:
+"${result.comparison.withTranscripts}"
+
+🤖 AI RESPONSE WITHOUT TRANSCRIPTS:
+"${result.comparison.withoutTranscripts}"
+
+🎯 ANALYSIS:
+• Responses are different: ${result.comparison.areDifferent ? 'YES ✅' : 'NO ❌'}
+• Transcripts used: ${result.comparison.transcriptsUsed}
+• Sentiment breakdown: ${JSON.stringify(result.comparison.sentimentBreakdown)}
+
+${result.comparison.areDifferent ? 
+  '✅ Transcripts ARE impacting AI responses!' : 
+  '❌ Transcripts are NOT impacting AI responses - there may be an issue with the integration'}`;
+
+        alert(debugInfo);
+      } else {
+        const error = await response.json();
+        alert(`❌ Test failed: ${error.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error testing: ${error}`);
+    } finally {
+      setTestingAI(false);
+    }
+  };
+
   const compressAll = async () => {
     // Get recordings that might need compression (WAV files)
     const wavRecordings = recordings.filter(
@@ -973,6 +1024,23 @@ ${result.debugNote}`;
                     ) : (
                       <>
                         🔬 Compare System Prompts
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    onClick={testTranscriptImpact}
+                    disabled={testingAI}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {testingAI ? (
+                      <>
+                        <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        🧪 Test Transcript Impact
                       </>
                     )}
                   </Button>

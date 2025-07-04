@@ -152,6 +152,16 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Extra debug - log first transcript sample
+    if (callTranscripts.length > 0) {
+      console.log('📋 First call transcript sample:', {
+        sentiment: callTranscripts[0].sentiment,
+        hasInsights: !!callTranscripts[0].sales_insights,
+        transcriptLength: callTranscripts[0].raw_transcript.length,
+        transcriptPreview: callTranscripts[0].raw_transcript.substring(0, 200) + '...'
+      });
+    }
+
     // Process with Claude
     const claudeResponse = await processConversationWithClaude(
       {
