@@ -498,7 +498,7 @@ export function CallRecordingsList() {
                   <Download className="mr-1 h-3 w-3" />
                   Download
                 </Button>
-                {recording.file_size && recording.file_size > 25 * 1024 * 1024 && (
+                {(!recording.file_size || recording.file_size > 20 * 1024 * 1024) && ( // Show for >20MB or unknown size
                   <Button 
                     variant="outline" 
                     size="sm"

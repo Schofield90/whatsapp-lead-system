@@ -13,6 +13,35 @@ export async function GET(request: NextRequest) {
       .eq('organization_id', userProfile.profile.organization_id)
       .order('created_at', { ascending: false });
 
+    // Get real file sizes from storage for recordings without size info
+    if (recordings) {
+      for (const recording of recordings) {
+        if (!recording.file_size) {
+          try {
+            const { data: fileInfo } = await supabase.storage
+              .from('call-recordings')
+              .list('', {
+                search: recording.original_filename
+              });
+            
+            if (fileInfo && fileInfo.length > 0) {
+              const realSize = fileInfo[0].metadata?.size;
+              if (realSize) {
+                // Update the recording with real size
+                recording.file_size = realSize;
+                await supabase
+                  .from('call_recordings')
+                  .update({ file_size: realSize })
+                  .eq('id', recording.id);
+              }
+            }
+          } catch (e) {
+            console.log('Could not get size for:', recording.original_filename);
+          }
+        }
+      }
+    }
+
     if (error) {
       console.error('Error fetching call recordings:', error);
       return NextResponse.json({ 
