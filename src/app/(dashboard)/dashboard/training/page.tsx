@@ -82,8 +82,12 @@ export default function TrainingPage() {
 
   const fetchCallRecordings = useCallback(async () => {
     try {
+      console.log('Fetching call recordings...');
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log('No user found');
+        return;
+      }
 
       const { data: userProfile } = await supabase
         .from('users')
@@ -91,7 +95,12 @@ export default function TrainingPage() {
         .eq('id', user.id)
         .single();
 
-      if (!userProfile) return;
+      if (!userProfile) {
+        console.log('No user profile found');
+        return;
+      }
+
+      console.log('Organization ID:', userProfile.organization_id);
 
       const { data, error } = await supabase
         .from('call_recordings')
@@ -102,6 +111,7 @@ export default function TrainingPage() {
       if (error) {
         console.error('Error fetching call recordings:', error);
       } else {
+        console.log('Call recordings found:', data?.length || 0);
         setCallRecordings(data || []);
       }
     } catch (error) {
