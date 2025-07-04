@@ -122,7 +122,7 @@ export function CallRecordingUpload({ recordings, onUploadComplete }: CallRecord
           await fetch('/api/call-recordings/transcribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename: uploadData.path })
+            body: JSON.stringify({ recordingId: dbResult.recording.id })
           });
         } catch (error) {
           console.error('Failed to trigger transcription:', error);

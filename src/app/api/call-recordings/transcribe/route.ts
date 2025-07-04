@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 export async function POST(request: NextRequest) {
   try {
     const { recordingId } = await request.json();
+    console.log('🎙️ Starting transcription for recording:', recordingId);
     
     if (!recordingId) {
       return NextResponse.json({ error: 'Recording ID required' }, { status: 400 });
@@ -19,9 +20,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fetchError || !recording) {
+      console.error('❌ Recording not found:', recordingId, fetchError);
       return NextResponse.json({ error: 'Recording not found' }, { status: 404 });
     }
 
+    console.log('✅ Recording found, updating status to transcribing...');
     // Update status to transcribing
     await supabase
       .from('call_recordings')
