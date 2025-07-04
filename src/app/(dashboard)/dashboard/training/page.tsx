@@ -405,32 +405,47 @@ export default function TrainingPage() {
         {/* Call Recordings Tab */}
         <TabsContent value="call_recordings">
           <div className="space-y-4">
+            <div className="bg-red-100 border border-red-200 rounded-lg p-4">
+              <p className="text-red-800 font-bold">🚨 FILE UPDATED - IF YOU SEE THIS, THE FILE IS LOADING</p>
+            </div>
             {/* Debug Test Button */}
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <p className="text-sm text-yellow-800 mb-2">🔧 Debug: Test upload functionality</p>
+              <p className="text-sm text-gray-600 mb-2">Test basic API connection:</p>
+              <button
+                onClick={() => {
+                  fetch('/api/simple-test')
+                    .then(r => r.json())
+                    .then(result => alert('API Test: ' + JSON.stringify(result, null, 2)))
+                    .catch(error => alert('API Test Error: ' + error.message));
+                }}
+                className="bg-blue-500 text-white px-3 py-1 rounded text-sm mr-2"
+              >
+                Test API
+              </button>
+              <br />
+              <p className="text-sm text-gray-600 mb-2 mt-2">Test file upload:</p>
               <input
                 type="file"
                 accept="audio/*"
-                onChange={async (e) => {
+                onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
+                  
+                  alert('File selected: ' + file.name);
                   
                   const formData = new FormData();
                   formData.append('file', file);
                   
-                  try {
-                    const response = await fetch('/api/test-upload', {
-                      method: 'POST',
-                      body: formData,
-                    });
-                    
-                    const result = await response.json();
-                    alert(JSON.stringify(result, null, 2));
-                  } catch (error) {
-                    alert('Error: ' + (error instanceof Error ? error.message : 'Unknown'));
-                  }
+                  fetch('/api/simple-test', {
+                    method: 'POST',
+                    body: formData,
+                  })
+                    .then(r => r.json())
+                    .then(result => alert('File Upload Test: ' + JSON.stringify(result, null, 2)))
+                    .catch(error => alert('File Upload Error: ' + error.message));
                 }}
-                className="text-sm"
+                className="text-sm block"
               />
             </div>
             

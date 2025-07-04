@@ -31,6 +31,12 @@ export async function POST(request: NextRequest) {
     // Test storage bucket access
     const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
     console.log('Available buckets:', buckets?.map(b => b.name), bucketError?.message);
+    
+    // Test call-recordings bucket specifically
+    const { data: files, error: filesError } = await supabase.storage
+      .from('call-recordings')
+      .list('', { limit: 1 });
+    console.log('Call recordings bucket access:', { success: !filesError, error: filesError?.message });
 
     return NextResponse.json({
       success: true,
@@ -41,7 +47,11 @@ export async function POST(request: NextRequest) {
         type: file.type
       },
       user: !!user,
-      buckets: buckets?.map(b => b.name) || []
+      buckets: buckets?.map(b => b.name) || [],
+      callRecordingsBucket: {
+        accessible: !filesError,
+        error: filesError?.message
+      }
     });
 
   } catch (error) {
