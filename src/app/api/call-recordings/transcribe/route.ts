@@ -183,29 +183,24 @@ export async function POST(request: NextRequest) {
         });
 
         const sentimentPrompt = `
-Analyze this sales call transcript for sentiment and provide key insights.
+Analyze this sales call transcript and determine if the overall customer sentiment is positive, negative, or neutral.
 
 TRANSCRIPT:
-${transcription.text.substring(0, 2000)}
+${transcription.text.substring(0, 1500)}
 
-You must respond with ONLY valid JSON in this exact format:
-{
-  "sentiment": "positive",
-  "confidence": 0.85,
-  "sales_insights": {
-    "key_points": "Main talking points covered",
-    "objections_raised": "Any objections mentioned",
-    "outcome": "Call outcome/next steps",
-    "effectiveness": "Overall effectiveness assessment"
-  }
-}
+Please analyze:
+1. Customer's tone and attitude throughout the call
+2. How receptive they were to the sales pitch
+3. Whether they expressed interest or resistance
+4. The overall outcome of the conversation
 
-The sentiment must be exactly one of: positive, negative, neutral
-Do not include any text before or after the JSON.`;
+Respond with just one word: POSITIVE, NEGATIVE, or NEUTRAL
+
+Then on a new line, briefly explain why in 1-2 sentences.`;
 
         const sentimentResponse = await anthropic.messages.create({
           model: 'claude-3-haiku-20240307',
-          max_tokens: 500,
+          max_tokens: 200,
           messages: [{
             role: 'user',
             content: sentimentPrompt
@@ -214,41 +209,28 @@ Do not include any text before or after the JSON.`;
 
         const analysisText = sentimentResponse.content[0].type === 'text' ? sentimentResponse.content[0].text : '';
         
-        try {
-          // Clean the response - remove any text before/after JSON
-          let cleanedText = analysisText.trim();
-          
-          // Extract JSON if it's wrapped in other text
-          const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            cleanedText = jsonMatch[0];
-          }
-          
-          const analysis = JSON.parse(cleanedText);
-          sentiment = analysis.sentiment || 'neutral';
-          
-          // Validate sentiment value
-          if (!['positive', 'negative', 'neutral'].includes(sentiment)) {
-            console.log('⚠️ Invalid sentiment value:', sentiment, '- defaulting to neutral');
-            sentiment = 'neutral';
-          }
-          
-          salesInsights = analysis.sales_insights || null;
-          console.log(`📊 Sentiment analysis: ${sentiment}`);
-        } catch (parseError) {
-          console.log('⚠️ Could not parse sentiment analysis, using neutral');
-          
-          // Fallback: Try to extract sentiment from text
-          const lowerText = analysisText.toLowerCase();
-          if (lowerText.includes('positive')) {
-            sentiment = 'positive';
-          } else if (lowerText.includes('negative')) {
-            sentiment = 'negative';
-          } else {
-            sentiment = 'neutral';
-          }
-          console.log('📝 Fallback sentiment:', sentiment);
+        // Extract sentiment from the first line
+        const lines = analysisText.trim().split('\n');
+        const firstLine = lines[0].trim().toLowerCase();
+        
+        if (firstLine.includes('positive')) {
+          sentiment = 'positive';
+        } else if (firstLine.includes('negative')) {
+          sentiment = 'negative';
+        } else {
+          sentiment = 'neutral';
         }
+        
+        // Create simple sales insights from the explanation
+        const explanation = lines.slice(1).join(' ').trim();
+        if (explanation) {
+          salesInsights = {
+            analysis: explanation,
+            sentiment_confidence: sentiment !== 'neutral' ? 'high' : 'medium'
+          };
+        }
+        
+        console.log(`📊 Sentiment analysis: ${sentiment}`);
       } catch (sentimentError) {
         console.log('⚠️ Sentiment analysis failed:', sentimentError);
       }
