@@ -31,6 +31,7 @@ export function CallRecordingsList() {
   const [transcribingIds, setTranscribingIds] = useState<Set<string>>(new Set());
   const [compressingIds, setCompressingIds] = useState<Set<string>>(new Set());
   const [backfillingsentiment, setBackfillingsentiment] = useState(false);
+  const [checkingSchema, setCheckingSchema] = useState(false);
 
   const fetchRecordings = async () => {
     setLoading(true);
@@ -349,6 +350,35 @@ export function CallRecordingsList() {
     }
   };
 
+  const checkSchema = async () => {
+    setCheckingSchema(true);
+    
+    try {
+      const response = await fetch('/api/call-recordings/add-sentiment-columns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(
+          `Database Schema Check Complete!\n\n` +
+          `✅ Total transcripts: ${result.totalTranscripts}\n` +
+          `📊 With sentiment: ${result.withSentiment}\n` +
+          `🔄 Need analysis: ${result.withoutSentiment}\n\n` +
+          `${result.message}`
+        );
+      } else {
+        const error = await response.json();
+        alert(`❌ Schema check failed: ${error.error}\n\nDetails: ${error.details || 'Unknown error'}`);
+      }
+    } catch (error) {
+      alert(`❌ Error checking schema: ${error}`);
+    } finally {
+      setCheckingSchema(false);
+    }
+  };
+
   const compressAll = async () => {
     // Get recordings that might need compression (WAV files)
     const wavRecordings = recordings.filter(
@@ -588,6 +618,22 @@ export function CallRecordingsList() {
           >
             <Zap className="mr-2 h-4 w-4" />
             Compress All WAV
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={checkSchema}
+            disabled={checkingSchema}
+          >
+            {checkingSchema ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Checking...
+              </>
+            ) : (
+              <>
+                🔧 Check Schema
+              </>
+            )}
           </Button>
           <Button 
             variant="outline"

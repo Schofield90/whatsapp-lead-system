@@ -7,6 +7,27 @@ export async function POST(request: NextRequest) {
     const userProfile = await requireOrganization();
     const supabase = createServiceClient();
     
+    // First, check if we have any transcripts at all
+    console.log('🔍 Checking for transcripts for organization:', userProfile.profile.organization_id);
+    
+    const { data: allTranscripts, error: allError } = await supabase
+      .from('call_transcripts')
+      .select('id, sentiment, created_at')
+      .eq('organization_id', userProfile.profile.organization_id);
+    
+    console.log('📊 Total transcripts found:', allTranscripts?.length || 0);
+    console.log('📊 Transcripts with sentiment:', allTranscripts?.filter(t => t.sentiment).length || 0);
+    console.log('📊 Transcripts without sentiment:', allTranscripts?.filter(t => !t.sentiment).length || 0);
+    
+    if (allError) {
+      console.error('❌ Error fetching all transcripts:', allError);
+      return NextResponse.json({ 
+        error: 'Failed to fetch transcripts',
+        details: allError.message,
+        code: allError.code 
+      }, { status: 500 });
+    }
+    
     // Get transcripts without sentiment analysis
     const { data: transcripts, error } = await supabase
       .from('call_transcripts')
@@ -16,7 +37,12 @@ export async function POST(request: NextRequest) {
       .limit(10); // Process 10 at a time
     
     if (error) {
-      return NextResponse.json({ error: 'Failed to fetch transcripts' }, { status: 500 });
+      console.error('❌ Error fetching transcripts without sentiment:', error);
+      return NextResponse.json({ 
+        error: 'Failed to fetch transcripts without sentiment',
+        details: error.message,
+        code: error.code 
+      }, { status: 500 });
     }
     
     if (!transcripts || transcripts.length === 0) {
