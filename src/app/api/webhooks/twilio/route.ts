@@ -126,15 +126,31 @@ export async function POST(request: NextRequest) {
         .select('raw_transcript, sentiment, sales_insights, created_at')
         .eq('organization_id', lead.organization_id)
         .not('sentiment', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(10) // Use last 10 transcripts for context
+        .order('sentiment', { ascending: false }) // Prioritize positive sentiment
+        .order('created_at', { ascending: false }) // Then by recency
+        .limit(20) // Use last 20 transcripts for context
     ]);
 
     const messages = messagesResult.data || [];
     const trainingData = trainingDataResult.data || [];
     const callTranscripts = callTranscriptsResult.data || [];
 
-    console.log(`🎯 Including ${callTranscripts.length} call transcripts in conversation context`);
+    console.log(`🎯 Webhook context loaded:`, {
+      organizationId: lead.organization_id,
+      leadId: lead.id,
+      messagesCount: messages.length,
+      trainingDataCount: trainingData.length,
+      callTranscriptsCount: callTranscripts.length,
+      sentimentBreakdown: callTranscripts.reduce((acc, t) => {
+        acc[t.sentiment] = (acc[t.sentiment] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      errors: {
+        messagesError: messagesResult.error,
+        trainingDataError: trainingDataResult.error,
+        callTranscriptsError: callTranscriptsResult.error,
+      }
+    });
 
     // Process with Claude
     const claudeResponse = await processConversationWithClaude(

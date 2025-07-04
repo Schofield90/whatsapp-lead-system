@@ -39,6 +39,7 @@ export function CallRecordingsList() {
   const [testingAI, setTestingAI] = useState(false);
   const [showAITest, setShowAITest] = useState(false);
   const [testMessage, setTestMessage] = useState('Hi, I saw your gym online and I\'m interested in joining. Can you tell me more about your prices?');
+  const [debuggingWebhook, setDebuggingWebhook] = useState(false);
 
   const fetchRecordings = async () => {
     setLoading(true);
@@ -435,6 +436,52 @@ ${result.learningData.hasLearning ?
     }
   };
 
+  const debugWebhookContext = async () => {
+    setDebuggingWebhook(true);
+    
+    try {
+      const response = await fetch('/api/debug-webhook-context');
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        const debugInfo = `
+🔍 WEBHOOK CONTEXT DEBUG:
+
+📊 CONTEXT LOADED:
+• Lead found: ${result.context.leadFound}
+• Organization ID: ${result.context.organizationId}
+• Messages: ${result.context.messagesCount}
+• Training data: ${result.context.trainingDataCount}
+• Call transcripts: ${result.context.callTranscriptsCount}
+
+📈 SENTIMENT BREAKDOWN:
+${JSON.stringify(result.sentimentBreakdown, null, 2)}
+
+🎯 SAMPLE TRANSCRIPTS:
+${result.callTranscriptsSample.map((sample: any, i: number) => 
+  `${i + 1}. ${sample.sentiment.toUpperCase()}: ${sample.insightsSample}`
+).join('\n')}
+
+❌ ERRORS:
+${JSON.stringify(result.errors, null, 2)}
+
+${result.context.callTranscriptsCount > 0 ? 
+  '✅ Transcripts should be available to WhatsApp AI' : 
+  '⚠️ No transcripts found - check sentiment analysis'
+}`;
+
+        alert(debugInfo);
+      } else {
+        alert('❌ Debug failed');
+      }
+    } catch (error) {
+      alert(`❌ Error debugging: ${error}`);
+    } finally {
+      setDebuggingWebhook(false);
+    }
+  };
+
   const compressAll = async () => {
     // Get recordings that might need compression (WAV files)
     const wavRecordings = recordings.filter(
@@ -714,6 +761,22 @@ ${result.learningData.hasLearning ?
             <TestTube className="mr-2 h-4 w-4" />
             Test AI Learning
             {showAITest ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={debugWebhookContext}
+            disabled={debuggingWebhook}
+          >
+            {debuggingWebhook ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Debugging...
+              </>
+            ) : (
+              <>
+                🔍 Debug WhatsApp
+              </>
+            )}
           </Button>
         </div>
       </CardHeader>

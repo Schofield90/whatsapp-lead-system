@@ -126,7 +126,7 @@ Lead Information:
   // Add insights from call transcripts
   if (callTranscripts && callTranscripts.length > 0) {
     systemPrompt += `\n=== CALL TRANSCRIPTION INSIGHTS ===\n`;
-    systemPrompt += `Based on ${callTranscripts.length} recent sales calls, here are key insights to improve your approach:\n\n`;
+    systemPrompt += `Based on ${callTranscripts.length} sales calls (prioritizing successful ones), here are key insights:\n\n`;
     
     // Analyze sentiment patterns
     const sentiments = callTranscripts
@@ -135,42 +135,57 @@ Lead Information:
     
     if (sentiments.length > 0) {
       const positiveCalls = sentiments.filter(s => s === 'positive').length;
+      const neutralCalls = sentiments.filter(s => s === 'neutral').length;
+      const negativeCalls = sentiments.filter(s => s === 'negative').length;
       const percentPositive = Math.round((positiveCalls / sentiments.length) * 100);
-      systemPrompt += `Recent Call Performance: ${percentPositive}% positive sentiment (${positiveCalls}/${sentiments.length} calls)\n\n`;
+      systemPrompt += `Call Performance Analysis: ${percentPositive}% positive (${positiveCalls} positive, ${neutralCalls} neutral, ${negativeCalls} negative)\n\n`;
     }
     
     // Add successful conversation patterns (from positive calls)
     const positiveCalls = callTranscripts.filter(t => t.sentiment === 'positive');
     if (positiveCalls.length > 0) {
-      systemPrompt += `SUCCESSFUL CONVERSATION PATTERNS (from recent positive calls):\n`;
+      systemPrompt += `PROVEN SUCCESSFUL PATTERNS (from ${positiveCalls.length} positive calls):\n`;
       
-      // Extract key phrases from positive calls (first 200 chars as example)
-      positiveCalls.slice(0, 3).forEach((call, index) => {
-        const snippet = call.raw_transcript.substring(0, 200);
-        systemPrompt += `Example ${index + 1}: "${snippet}..."\n`;
+      // Extract key phrases from positive calls with better summarization
+      positiveCalls.slice(0, 5).forEach((call, index) => {
+        const snippet = call.raw_transcript.substring(0, 150);
+        const analysis = call.sales_insights?.analysis || 'High engagement call';
+        systemPrompt += `${index + 1}. "${snippet}..." → ${analysis}\n`;
       });
       systemPrompt += `\n`;
     }
     
-    // Add sales insights if available
+    // Add sales insights from all calls with sentiment analysis
     const callsWithInsights = callTranscripts.filter(t => t.sales_insights);
     if (callsWithInsights.length > 0) {
-      systemPrompt += `KEY LEARNINGS FROM RECENT CALLS:\n`;
-      callsWithInsights.slice(0, 5).forEach(call => {
-        if (call.sales_insights?.key_points) {
-          systemPrompt += `- ${call.sales_insights.key_points}\n`;
-        }
-        if (call.sales_insights?.objections_raised) {
-          systemPrompt += `- Common objection: ${call.sales_insights.objections_raised}\n`;
-        }
-        if (call.sales_insights?.effective_responses) {
-          systemPrompt += `- Effective response: ${call.sales_insights.effective_responses}\n`;
-        }
-      });
+      systemPrompt += `ACTIONABLE INSIGHTS FROM CALLS:\n`;
+      
+      // Group insights by sentiment for better context
+      const positiveInsights = callsWithInsights.filter(c => c.sentiment === 'positive');
+      const neutralInsights = callsWithInsights.filter(c => c.sentiment === 'neutral');
+      
+      if (positiveInsights.length > 0) {
+        systemPrompt += `✅ FROM SUCCESSFUL CALLS:\n`;
+        positiveInsights.slice(0, 3).forEach(call => {
+          if (call.sales_insights?.analysis) {
+            systemPrompt += `- ${call.sales_insights.analysis}\n`;
+          }
+        });
+      }
+      
+      if (neutralInsights.length > 0) {
+        systemPrompt += `⚠️ AREAS FOR IMPROVEMENT:\n`;
+        neutralInsights.slice(0, 2).forEach(call => {
+          if (call.sales_insights?.analysis) {
+            systemPrompt += `- ${call.sales_insights.analysis}\n`;
+          }
+        });
+      }
+      
       systemPrompt += `\n`;
     }
     
-    systemPrompt += `Use these insights to personalize your approach and avoid common pitfalls.\n`;
+    systemPrompt += `Focus on replicating the successful patterns while avoiding the pitfalls identified in neutral/negative calls.\n`;
     systemPrompt += `=== END CALL INSIGHTS ===\n\n`;
   }
 
@@ -184,6 +199,15 @@ Guidelines:
 - Always end with a question to keep the conversation flowing
 - Apply learnings from recent call transcriptions to improve your approach
 `;
+
+  // Debug: Log system prompt info
+  console.log('🎯 System prompt built:', {
+    totalLength: systemPrompt.length,
+    hasCallTranscripts: callTranscripts && callTranscripts.length > 0,
+    callTranscriptsCount: callTranscripts?.length || 0,
+    includesInsights: systemPrompt.includes('CALL TRANSCRIPTION INSIGHTS'),
+    promptPreview: systemPrompt.substring(0, 300) + '...'
+  });
 
   return systemPrompt;
 }
