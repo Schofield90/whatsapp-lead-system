@@ -122,16 +122,22 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      const leadData: any = {
+        phone: customerPhone,
+        name: 'WhatsApp User',
+        organization_id: organization.id,
+        status: 'new',
+        metadata: { source: 'whatsapp' }
+      };
+
+      // Only add lead_source_id if we have one
+      if (leadSource?.id) {
+        leadData.lead_source_id = leadSource.id;
+      }
+
       const { data: newLead, error: createError } = await supabase
         .from('leads')
-        .insert({
-          phone: customerPhone,
-          name: 'WhatsApp User',
-          organization_id: organization.id,
-          lead_source_id: leadSource?.id, // Optional
-          status: 'new',
-          metadata: { source: 'whatsapp' }
-        })
+        .insert(leadData)
         .select(`
           *,
           organization:organizations(*)
