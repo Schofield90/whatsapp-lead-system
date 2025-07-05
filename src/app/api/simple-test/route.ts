@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    if (\!orgs || orgs.length === 0) {
+    if (!orgs || orgs.length === 0) {
       return NextResponse.json({
         step: 1,
         error: 'No organizations found'
@@ -98,4 +98,3 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
-EOF < /dev/null
