@@ -4,7 +4,7 @@ import { requireOrganization } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    await requireOrganization();
+    const userProfile = await requireOrganization();
     
     const { searchParams } = new URL(request.url);
     const view = searchParams.get('view') || 'upcoming';
@@ -12,7 +12,9 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const count = parseInt(searchParams.get('count') || '10');
 
-    const calendarService = new GoogleCalendarEventsService();
+    const calendarService = await GoogleCalendarEventsService.createFromDatabase(
+      userProfile.profile.organization_id
+    );
     let events;
 
     switch (view) {

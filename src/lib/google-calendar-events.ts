@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { createServiceClient } from '@/lib/supabase/server';
 
 export interface CalendarEvent {
   id: string;
@@ -25,17 +26,41 @@ export interface CalendarEvent {
 export class GoogleCalendarEventsService {
   private calendar;
 
-  constructor() {
+  constructor(clientId: string, clientSecret: string, refreshToken: string) {
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
+      clientId,
+      clientSecret
     );
 
     oauth2Client.setCredentials({
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+      refresh_token: refreshToken,
     });
 
     this.calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+  }
+
+  static async createFromDatabase(organizationId: string): Promise<GoogleCalendarEventsService> {
+    const supabase = createServiceClient();
+    
+    const { data: config, error } = await supabase
+      .from('calendar_config')
+      .select('google_client_id, google_client_secret, google_refresh_token')
+      .eq('organization_id', organizationId)
+      .single();
+
+    if (error || !config) {
+      throw new Error('Calendar not configured. Please set up your Google Calendar credentials first.');
+    }
+
+    if (!config.google_client_id || !config.google_client_secret || !config.google_refresh_token) {
+      throw new Error('Incomplete calendar configuration. Please complete the setup in Calendar Setup.');
+    }
+
+    return new GoogleCalendarEventsService(
+      config.google_client_id,
+      config.google_client_secret,
+      config.google_refresh_token
+    );
   }
 
   async getEvents(startDate?: Date, endDate?: Date): Promise<CalendarEvent[]> {
