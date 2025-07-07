@@ -144,9 +144,22 @@ See you soon! 💪`,
 
       console.log(`📱 Sending ${reminder.reminder_type} reminder to ${reminder.recipient_phone}`);
 
+      // Validate phone number format
+      if (!reminder.recipient_phone || reminder.recipient_phone.length < 10) {
+        throw new Error(`Invalid phone number: ${reminder.recipient_phone}`);
+      }
+
+      // Ensure phone number has + prefix
+      let formattedPhone = reminder.recipient_phone;
+      if (!formattedPhone.startsWith('+')) {
+        formattedPhone = '+' + formattedPhone;
+      }
+
+      console.log(`📱 Formatted phone: ${formattedPhone}`);
+
       // Send WhatsApp message
       const twilioMessage = await sendWhatsAppMessage(
-        reminder.recipient_phone.replace('+', ''),
+        formattedPhone,
         reminder.message_template
       );
 
@@ -165,14 +178,17 @@ See you soon! 💪`,
     } catch (error) {
       console.error(`❌ Error sending reminder ${reminderId}:`, error);
       
-      // Mark as failed
+      // Mark as failed to prevent retry loops
       await this.getSupabase()
         .from('booking_reminders')
         .update({
           status: 'failed',
-          error_message: error instanceof Error ? error.message : 'Unknown error'
+          error_message: error instanceof Error ? error.message : 'Unknown error',
+          sent_at: new Date().toISOString()
         })
         .eq('id', reminderId);
+        
+      // Don't rethrow to prevent breaking the batch process
     }
   }
 
@@ -180,17 +196,25 @@ See you soon! 💪`,
     try {
       const now = new Date();
       
-      // Get reminders that are due to be sent
+      // Get reminders that are due to be sent (limit to prevent spam)
       const { data: dueReminders } = await this.getSupabase()
         .from('booking_reminders')
         .select('*')
         .eq('status', 'pending')
-        .lte('scheduled_at', now.toISOString());
+        .lte('scheduled_at', now.toISOString())
+        .limit(5); // Limit to 5 at a time to prevent spam
 
       console.log(`📋 Processing ${dueReminders?.length || 0} due reminders`);
 
-      for (const reminder of dueReminders || []) {
+      if (!dueReminders || dueReminders.length === 0) {
+        console.log('No pending reminders to process');
+        return;
+      }
+
+      for (const reminder of dueReminders) {
         await this.sendReminder(reminder.id);
+        // Add delay between messages to prevent rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
     } catch (error) {
