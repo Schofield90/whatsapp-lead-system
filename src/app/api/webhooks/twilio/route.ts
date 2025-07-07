@@ -123,8 +123,7 @@ export async function POST(request: NextRequest) {
         .insert({
           lead_id: lead.id,
           organization_id: organization.id,
-          status: 'active',
-          channel: 'whatsapp'
+          status: 'active'
         })
         .select()
         .single();
@@ -200,18 +199,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Process with Claude
-    const claudeResponse = await processConversationWithClaude(
-      {
-        lead,
-        conversation,
-        messages,
-        trainingData,
-        organization: lead.organization,
-        callTranscripts,
-      },
-      messageBody
-    );
+    // Process with Claude (with fallback)
+    let claudeResponse;
+    try {
+      claudeResponse = await processConversationWithClaude(
+        {
+          lead,
+          conversation,
+          messages,
+          trainingData,
+          organization: lead.organization,
+          callTranscripts,
+        },
+        messageBody
+      );
+    } catch (claudeError) {
+      console.error('Error processing with Claude:', claudeError);
+      // Fallback response when Claude API fails
+      claudeResponse = {
+        response: "Thanks for your message! We've received it and will get back to you soon. Our team is currently experiencing high volume but we'll respond as quickly as possible.",
+        shouldBookCall: false,
+        leadQualified: false,
+        suggestedActions: []
+      };
+    }
 
     // Send response via WhatsApp
     const twilioMessage = await sendWhatsAppMessage(from, claudeResponse.response);
