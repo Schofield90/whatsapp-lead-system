@@ -8,11 +8,14 @@ import {
   Users, 
   MessageSquare, 
   Calendar,
+  CalendarDays,
   Settings,
   BarChart3,
   BookOpen,
   Zap,
-  FileAudio
+  FileAudio,
+  Brain,
+  DollarSign
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,11 +30,15 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Calendar', href: '/dashboard/calendar', icon: CalendarDays },
   { name: 'Leads', href: '/dashboard/leads', icon: Users },
   { name: 'Conversations', href: '/dashboard/conversations', icon: MessageSquare },
   { name: 'Call Recordings', href: '/dashboard/call-recordings', icon: FileAudio },
   { name: 'Bookings', href: '/dashboard/bookings', icon: Calendar },
   { name: 'Training', href: '/dashboard/training', icon: BookOpen },
+  { name: 'AI Test', href: '/dashboard/ai-test', icon: Brain },
+  { name: 'Cost Monitor', href: '/dashboard/cost-monitor', icon: DollarSign },
+  { name: 'Calendar Setup', href: '/dashboard/calendar-setup', icon: Calendar },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
   { name: 'Integrations', href: '/dashboard/integrations', icon: Zap },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },

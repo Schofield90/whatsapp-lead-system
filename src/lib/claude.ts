@@ -58,8 +58,8 @@ Respond as a helpful gym sales agent. Assess if the customer is ready to book a 
 
   try {
     const response = await client.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1000,
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 500,
       temperature: 0.7,
       system: systemPrompt,
       messages: [
@@ -120,6 +120,9 @@ Lead Information:
       case 'qualification_criteria':
         systemPrompt += `\nQualification Criteria:\n${data.content}\n`;
         break;
+      case 'sop':
+        systemPrompt += `\nStandard Operating Procedures:\n${data.content}\n`;
+        break;
     }
   });
 
@@ -147,8 +150,8 @@ Lead Information:
       systemPrompt += `PROVEN SUCCESSFUL PATTERNS (from ${positiveCalls.length} positive calls):\n`;
       
       // Extract key phrases from positive calls with better summarization
-      positiveCalls.slice(0, 5).forEach((call, index) => {
-        const snippet = call.raw_transcript.substring(0, 150);
+      positiveCalls.slice(0, 2).forEach((call, index) => {
+        const snippet = call.raw_transcript.substring(0, 75);
         const analysis = call.sales_insights?.analysis || 'High engagement call';
         systemPrompt += `${index + 1}. "${snippet}..." → ${analysis}\n`;
       });
@@ -166,7 +169,7 @@ Lead Information:
       
       if (positiveInsights.length > 0) {
         systemPrompt += `✅ FROM SUCCESSFUL CALLS:\n`;
-        positiveInsights.slice(0, 3).forEach(call => {
+        positiveInsights.slice(0, 2).forEach(call => {
           if (call.sales_insights?.analysis) {
             systemPrompt += `- ${call.sales_insights.analysis}\n`;
           }
@@ -175,7 +178,7 @@ Lead Information:
       
       if (neutralInsights.length > 0) {
         systemPrompt += `⚠️ AREAS FOR IMPROVEMENT:\n`;
-        neutralInsights.slice(0, 2).forEach(call => {
+        neutralInsights.slice(0, 1).forEach(call => {
           if (call.sales_insights?.analysis) {
             systemPrompt += `- ${call.sales_insights.analysis}\n`;
           }
@@ -245,7 +248,7 @@ export async function getCallTranscripts(organizationId: string): Promise<Array<
       .eq('organization_id', organizationId)
       .not('sentiment', 'is', null) // Only include transcripts with sentiment analysis
       .order('created_at', { ascending: false })
-      .limit(20); // Get last 20 transcripts
+      .limit(5); // Get last 5 transcripts
     
     if (error) {
       console.error('Error fetching call transcripts:', error);

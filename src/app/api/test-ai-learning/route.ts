@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireOrganization } from '@/lib/auth';
-import { processConversationWithClaude } from '@/lib/claude';
+import { processConversationWithClaude } from '@/lib/claude-optimized';
 
 export async function POST(request: NextRequest) {
   try {

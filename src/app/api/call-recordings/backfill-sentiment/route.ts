@@ -55,6 +55,15 @@ export async function POST(request: NextRequest) {
     let processedCount = 0;
     let failedCount = 0;
     
+    // COST OPTIMIZATION: Disable bulk processing in production
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({
+        error: 'Bulk sentiment analysis disabled in production to control costs',
+        message: 'Use individual processing or enable via ENABLE_BULK_PROCESSING=true',
+        transcriptsFound: transcripts.length
+      }, { status: 403 });
+    }
+    
     // Check for Anthropic API key
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ 

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/twilio';
-import { processConversationWithClaude } from '@/lib/claude';
+import { processConversationWithClaude, alertIfHighCosts } from '@/lib/claude-optimized';
 import { sendBookingConfirmation } from '@/lib/email';
+import { createCalendarService } from '@/lib/google-calendar';
+import { reminderService } from '@/lib/reminder-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -146,56 +148,42 @@ export async function POST(request: NextRequest) {
         twilio_message_sid: messageSid,
       });
 
-    // Get conversation history, training data, and call transcripts
+    // OPTIMIZATION: Limit data fetching to reduce token usage
     const [messagesResult, trainingDataResult, callTranscriptsResult] = await Promise.all([
       supabase
         .from('messages')
         .select('*')
         .eq('conversation_id', conversation.id)
-        .order('created_at', { ascending: true }),
+        .order('created_at', { ascending: false })
+        .limit(10), // Only last 10 messages
       supabase
         .from('training_data')
-        .select('*')
+        .select('data_type, content')
         .eq('organization_id', lead.organization_id)
-        .eq('is_active', true),
+        .eq('is_active', true)
+        .limit(5), // Only active training data
       supabase
         .from('call_transcripts')
-        .select('raw_transcript, sentiment, sales_insights, created_at')
+        .select('sentiment, sales_insights, created_at')
         .eq('organization_id', lead.organization_id)
-        .not('sentiment', 'is', null)
-        .order('sentiment', { ascending: false }) // Prioritize positive sentiment
-        .order('created_at', { ascending: false }) // Then by recency
-        .limit(20) // Use last 20 transcripts for context
+        .eq('sentiment', 'positive') // Only positive calls
+        .order('created_at', { ascending: false })
+        .limit(3) // Only 3 recent positive calls for insights
     ]);
 
     const messages = messagesResult.data || [];
     const trainingData = trainingDataResult.data || [];
     const callTranscripts = callTranscriptsResult.data || [];
 
-    console.log(`🎯 Webhook context loaded:`, {
-      organizationId: lead.organization_id,
-      leadId: lead.id,
-      messagesCount: messages.length,
-      trainingDataCount: trainingData.length,
-      callTranscriptsCount: callTranscripts.length,
-      sentimentBreakdown: callTranscripts.reduce((acc, t) => {
-        acc[t.sentiment] = (acc[t.sentiment] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>),
-      errors: {
-        messagesError: messagesResult.error,
-        trainingDataError: trainingDataResult.error,
-        callTranscriptsError: callTranscriptsResult.error,
-      }
-    });
-
-    // Extra debug - log first transcript sample
-    if (callTranscripts.length > 0) {
-      console.log('📋 First call transcript sample:', {
-        sentiment: callTranscripts[0].sentiment,
-        hasInsights: !!callTranscripts[0].sales_insights,
-        transcriptLength: callTranscripts[0].raw_transcript.length,
-        transcriptPreview: callTranscripts[0].raw_transcript.substring(0, 200) + '...'
+    // OPTIMIZATION: Minimal logging to reduce noise
+    console.log(`🎯 Context: ${messages.length} msgs, ${trainingData.length} training, ${callTranscripts.length} insights`);
+    
+    // Check for data errors
+    if (messagesResult.error || trainingDataResult.error || callTranscriptsResult.error) {
+      console.error('Data fetch errors:', {
+        messages: messagesResult.error,
+        training: trainingDataResult.error, 
+        transcripts: callTranscriptsResult.error
       });
     }
 
@@ -217,7 +205,7 @@ export async function POST(request: NextRequest) {
       console.error('Error processing with Claude:', claudeError);
       // Fallback response when Claude API fails
       claudeResponse = {
-        response: "Thanks for your message! We've received it and will get back to you soon. Our team is currently experiencing high volume but we'll respond as quickly as possible.",
+        response: "Hi! Thanks for reaching out. I'd love to help you with your fitness goals. Could you tell me a bit about what you're looking to achieve?",
         shouldBookCall: false,
         leadQualified: false,
         suggestedActions: []
@@ -261,7 +249,10 @@ export async function POST(request: NextRequest) {
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversation.id);
 
-    return new NextResponse('Success', { status: 200 });
+    // OPTIMIZATION: Monitor costs after each webhook
+    alertIfHighCosts();
+
+    return new NextResponse('', { status: 200 });
 
   } catch (error) {
     console.error('Twilio webhook error:', error);
@@ -281,21 +272,9 @@ export async function GET(request: NextRequest) {
 
 async function handleBookingFlow(supabase: ReturnType<typeof createServiceClient>, lead: { id: string; phone: string; email?: string; name: string; organization_id: string; organization: { name: string } }, conversation: { id: string }) {
   try {
-    // Get organization settings for calendar integration
-    const { data: secrets } = await supabase
-      .from('organization_secrets')
-      .select('*')
-      .eq('organization_id', lead.organization_id)
-      .eq('service_name', 'google_calendar')
-      .eq('is_active', true)
-      .single();
+    console.log(`🗓️ Starting booking flow for lead ${lead.name} (${lead.phone})`);
 
-    if (!secrets) {
-      console.log('No Google Calendar integration found');
-      return;
-    }
-
-    // For now, create a booking 24 hours from now
+    // Get next available time slot (tomorrow at 10 AM for now)
     const scheduledAt = new Date();
     scheduledAt.setDate(scheduledAt.getDate() + 1);
     scheduledAt.setHours(10, 0, 0, 0); // 10 AM tomorrow
@@ -303,17 +282,38 @@ async function handleBookingFlow(supabase: ReturnType<typeof createServiceClient
     const endTime = new Date(scheduledAt);
     endTime.setMinutes(endTime.getMinutes() + 30);
 
-    // Create calendar event (this would need proper Google OAuth implementation)
-    // const calendarEvent = await createCalendarEvent(secrets.access_token, {
-    //   summary: `Consultation with ${lead.name}`,
-    //   description: `Fitness consultation for ${lead.name}`,
-    //   startTime: scheduledAt.toISOString(),
-    //   endTime: endTime.toISOString(),
-    //   attendeeEmail: lead.email,
-    // });
+    let calendarEventId = null;
+    let meetLink = null;
+
+    // Try to create Google Calendar event
+    try {
+      const calendarService = await createCalendarService(lead.organization_id);
+      if (calendarService) {
+        console.log('📅 Creating Google Calendar event...');
+        const calendarEvent = await calendarService.createEvent({
+          summary: `Fitness Consultation - ${lead.name}`,
+          description: `Fitness consultation with ${lead.name}\nPhone: ${lead.phone}\nEmail: ${lead.email || 'Not provided'}\n\nDiscuss fitness goals and membership options.`,
+          startTime: scheduledAt.toISOString(),
+          endTime: endTime.toISOString(),
+          attendeeEmail: lead.email,
+          attendeeName: lead.name,
+          attendeePhone: lead.phone,
+        });
+
+        calendarEventId = calendarEvent.eventId;
+        meetLink = calendarEvent.meetLink;
+        console.log(`✅ Calendar event created: ${calendarEventId}`);
+      } else {
+        console.log('⚠️ Google Calendar not configured, booking without calendar integration');
+      }
+    } catch (calendarError) {
+      console.error('❌ Calendar event creation failed:', calendarError);
+      // Continue with booking even if calendar fails
+    }
 
     // Create booking in database
-    const { data: booking } = await supabase
+    console.log('💾 Creating booking in database...');
+    const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .insert({
         organization_id: lead.organization_id,
@@ -322,11 +322,22 @@ async function handleBookingFlow(supabase: ReturnType<typeof createServiceClient
         scheduled_at: scheduledAt.toISOString(),
         duration_minutes: 30,
         status: 'scheduled',
-        // google_calendar_event_id: calendarEvent.eventId,
-        // google_meet_link: calendarEvent.meetLink,
+        google_calendar_event_id: calendarEventId,
+        google_meet_link: meetLink,
       })
-      .select()
+      .select(`
+        *,
+        lead:leads(id, name, phone, email),
+        organization:organizations(id, name)
+      `)
       .single();
+
+    if (bookingError) {
+      console.error('❌ Error creating booking:', bookingError);
+      throw new Error('Failed to create booking');
+    }
+
+    console.log(`✅ Booking created with ID: ${booking.id}`);
 
     // Update lead status
     await supabase
@@ -334,31 +345,49 @@ async function handleBookingFlow(supabase: ReturnType<typeof createServiceClient
       .update({ status: 'booked' })
       .eq('id', lead.id);
 
-    // Send confirmation message
-    const confirmationMessage = `🎉 Perfect! I've scheduled your consultation for ${scheduledAt.toLocaleDateString()} at ${scheduledAt.toLocaleTimeString()}.
-
-You'll receive an email confirmation with all the details shortly. Looking forward to helping you achieve your fitness goals!
-
-If you need to reschedule, just let me know.`;
-
-    await sendWhatsAppMessage(lead.phone, confirmationMessage);
+    // Schedule all reminders (owner notification, client confirmation, 1-hour reminder)
+    console.log('📱 Scheduling reminders...');
+    await reminderService.scheduleBookingReminders({
+      id: booking.id,
+      lead_id: lead.id,
+      scheduled_at: scheduledAt.toISOString(),
+      lead: {
+        phone: lead.phone,
+        name: lead.name,
+      },
+      organization: {
+        name: lead.organization.name,
+      },
+    });
 
     // Send email confirmation if email is available
-    if (lead.email && booking) {
+    if (lead.email && meetLink) {
       try {
+        console.log('📧 Sending email confirmation...');
         await sendBookingConfirmation(lead.email, {
           leadName: lead.name,
           scheduledAt: scheduledAt.toISOString(),
-          meetLink: booking.google_meet_link || 'TBD',
+          meetLink: meetLink,
           organizationName: lead.organization.name,
           duration: 30,
         });
+        console.log('✅ Email confirmation sent');
       } catch (emailError) {
-        console.error('Error sending email confirmation:', emailError);
+        console.error('❌ Error sending email confirmation:', emailError);
       }
     }
 
+    console.log(`🎉 Booking flow completed successfully for ${lead.name}`);
+
   } catch (error) {
-    console.error('Error handling booking flow:', error);
+    console.error('❌ Error handling booking flow:', error);
+    
+    // Send fallback confirmation message
+    try {
+      const fallbackMessage = `Thanks for your interest! I'll arrange a consultation for you and get back to you with the details shortly. Looking forward to helping you with your fitness goals! 💪`;
+      await sendWhatsAppMessage(lead.phone, fallbackMessage);
+    } catch (fallbackError) {
+      console.error('❌ Error sending fallback message:', fallbackError);
+    }
   }
 }

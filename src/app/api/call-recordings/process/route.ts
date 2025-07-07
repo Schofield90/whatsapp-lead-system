@@ -77,12 +77,20 @@ Focus on actionable insights that can be used to train other sales conversations
 `;
 
       const response = await anthropic.messages.create({
-        model: 'claude-3-sonnet-20240229',
-        max_tokens: 4000,
+        model: 'claude-3-haiku-20240307', // COST OPTIMIZATION: Use cheapest model
+        max_tokens: 1000, // COST OPTIMIZATION: Reduce from 4000 to 1000
         messages: [{
           role: 'user',
           content: analysisPrompt
         }]
+      });
+      
+      // Log cost information
+      console.log('💰 Call processing cost:', {
+        model: 'claude-3-haiku-20240307',
+        inputTokens: response.usage?.input_tokens || 0,
+        outputTokens: response.usage?.output_tokens || 0,
+        transcriptLength: transcript.length
       });
 
       const analysisText = response.content[0].type === 'text' ? response.content[0].text : '';

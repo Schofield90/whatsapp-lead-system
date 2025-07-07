@@ -229,6 +229,8 @@ export default function TrainingPage() {
         return { icon: Shield, label: 'Objection Handling', color: 'bg-red-100 text-red-800' };
       case 'qualification_criteria':
         return { icon: Target, label: 'Qualification Criteria', color: 'bg-green-100 text-green-800' };
+      case 'sop':
+        return { icon: BookOpen, label: 'Standard Operating Procedures', color: 'bg-purple-100 text-purple-800' };
       default:
         return { icon: BookOpen, label: type, color: 'bg-gray-100 text-gray-800' };
     }
@@ -238,6 +240,7 @@ export default function TrainingPage() {
     sales_script: trainingData.filter(item => item.data_type === 'sales_script'),
     objection_handling: trainingData.filter(item => item.data_type === 'objection_handling'),
     qualification_criteria: trainingData.filter(item => item.data_type === 'qualification_criteria'),
+    sop: trainingData.filter(item => item.data_type === 'sop'),
   };
 
   return (
@@ -280,6 +283,7 @@ export default function TrainingPage() {
                     <SelectItem value="sales_script">Sales Script</SelectItem>
                     <SelectItem value="objection_handling">Objection Handling</SelectItem>
                     <SelectItem value="qualification_criteria">Qualification Criteria</SelectItem>
+                    <SelectItem value="sop">Standard Operating Procedures (SOP)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -312,6 +316,7 @@ export default function TrainingPage() {
           <TabsTrigger value="sales_script">Sales Scripts</TabsTrigger>
           <TabsTrigger value="objection_handling">Objection Handling</TabsTrigger>
           <TabsTrigger value="qualification_criteria">Qualification Criteria</TabsTrigger>
+          <TabsTrigger value="sop">SOPs</TabsTrigger>
           <TabsTrigger value="call_recordings">
             <Mic className="mr-2 h-4 w-4" />
             Call Recordings
@@ -337,6 +342,7 @@ export default function TrainingPage() {
                   {type === 'sales_script' && 'Define how Claude should approach and engage with leads'}
                   {type === 'objection_handling' && 'Provide responses for common objections and concerns'}
                   {type === 'qualification_criteria' && 'Set criteria for qualifying leads as sales-ready'}
+                  {type === 'sop' && 'Standard operating procedures and business processes for your organization'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
