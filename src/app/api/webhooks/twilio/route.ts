@@ -238,9 +238,12 @@ export async function POST(request: NextRequest) {
         .eq('id', lead.id);
     }
 
-    // Handle booking if customer is ready
-    if (claudeResponse.shouldBookCall) {
+    // Handle booking if customer is ready (check if not already booked)
+    if (claudeResponse.shouldBookCall && lead.status !== 'booked') {
+      console.log('🗓️ Customer ready to book - starting booking flow');
       await handleBookingFlow(supabase, lead, conversation);
+    } else if (claudeResponse.shouldBookCall && lead.status === 'booked') {
+      console.log('⚠️ Customer already booked - skipping booking flow');
     }
 
     // Update conversation timestamp
@@ -345,7 +348,8 @@ async function handleBookingFlow(supabase: ReturnType<typeof createServiceClient
       .update({ status: 'booked' })
       .eq('id', lead.id);
 
-    // Schedule all reminders (owner notification, client confirmation, 1-hour reminder)
+    // Schedule reminders (owner notification and 1-hour reminder only)
+    // Client confirmation is handled by Claude's response
     console.log('📱 Scheduling reminders...');
     await reminderService.scheduleBookingReminders({
       id: booking.id,

@@ -51,23 +51,15 @@ The client has been notified and will receive a reminder 1 hour before the call.
       status: 'pending' as const
     };
 
-    // 2. Client confirmation (immediate)
-    const clientConfirmation = {
-      booking_id: booking.id,
-      reminder_type: 'confirmation' as const,
-      scheduled_at: new Date().toISOString(),
-      recipient_phone: booking.lead.phone,
-      message_template: `🎉 Great news! Your consultation is confirmed!
-
-📅 Date & Time: ${scheduledDate.toLocaleDateString()} at ${scheduledDate.toLocaleTimeString()}
-🏋️ With: ${booking.organization.name}
-⏱️ Duration: 30 minutes
-
-I'll send you a reminder 1 hour before our call. Looking forward to helping you achieve your fitness goals!
-
-If you need to reschedule, just let me know.`,
-      status: 'pending' as const
-    };
+    // 2. Client confirmation (disabled - handled by Claude's response)
+    // const clientConfirmation = {
+    //   booking_id: booking.id,
+    //   reminder_type: 'confirmation' as const,
+    //   scheduled_at: new Date().toISOString(),
+    //   recipient_phone: booking.lead.phone,
+    //   message_template: `🎉 Great news! Your consultation is confirmed!`,
+    //   status: 'pending' as const
+    // };
 
     // 3. One hour before reminder
     const oneHourReminder = {
@@ -86,7 +78,7 @@ See you soon! 💪`,
       status: 'pending' as const
     };
 
-    reminders.push(ownerReminder, clientConfirmation, oneHourReminder);
+    reminders.push(ownerReminder, oneHourReminder);
 
     // Insert all reminders into database
     const { data, error } = await this.getSupabase()
@@ -101,7 +93,7 @@ See you soon! 💪`,
 
     console.log(`✅ Scheduled ${reminders.length} reminders for booking ${booking.id}`);
 
-    // Send immediate reminders (owner notification and client confirmation)
+    // Send immediate reminders (owner notification only)
     await this.sendImmediateReminders(booking.id);
 
     return data;
@@ -112,7 +104,7 @@ See you soon! 💪`,
       .from('booking_reminders')
       .select('*')
       .eq('booking_id', bookingId)
-      .in('reminder_type', ['owner_notification', 'confirmation'])
+      .eq('reminder_type', 'owner_notification') // Only owner notifications
       .eq('status', 'pending');
 
     for (const reminder of immediateReminders || []) {
