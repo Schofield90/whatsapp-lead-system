@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,33 @@ export default function CalendarSetupPage() {
   });
   const [loading, setLoading] = useState(false);
   const [setupComplete, setSetupComplete] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  useEffect(() => {
+    // Load existing configuration
+    const loadConfig = async () => {
+      try {
+        const response = await fetch('/api/calendar/config');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.config) {
+            setCredentials({
+              client_id: data.config.google_client_id || '',
+              client_secret: data.config.google_client_secret || '',
+              refresh_token: data.config.google_refresh_token || ''
+            });
+            setSetupComplete(!!data.config.google_client_id && !!data.config.google_client_secret && !!data.config.google_refresh_token);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading config:', error);
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    loadConfig();
+  }, []);
 
   const handleSave = async () => {
     if (!credentials.client_id || !credentials.client_secret || !credentials.refresh_token) {
@@ -27,16 +54,27 @@ export default function CalendarSetupPage() {
 
     setLoading(true);
     try {
-      // In a real implementation, you would save these to your environment variables
-      // or secure storage. For now, we'll just show success.
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await fetch('/api/calendar/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          google_client_id: credentials.client_id,
+          google_client_secret: credentials.client_secret,
+          google_refresh_token: credentials.refresh_token,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save configuration');
+      }
       
       setSetupComplete(true);
       toast.success('Google Calendar integration configured successfully!');
     } catch (error) {
       toast.error('Failed to save configuration');
+      console.error('Error saving config:', error);
     } finally {
       setLoading(false);
     }
@@ -46,6 +84,15 @@ export default function CalendarSetupPage() {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard!');
   };
+
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2 text-gray-600">Loading configuration...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
