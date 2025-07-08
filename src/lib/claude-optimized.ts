@@ -190,10 +190,25 @@ Your goal: Qualify leads and book consultations. Be conversational and concise.
 
 `;
 
-  // OPTIMIZATION 7: Summarize training data instead of including full content
-  const trainingTypes = trainingData.map(d => d.data_type).join(', ');
-  if (trainingTypes) {
-    systemPrompt += `Training available: ${trainingTypes}\n`;
+  // OPTIMIZATION 7: Include actual training data content (essential for AI responses)
+  if (trainingData && trainingData.length > 0) {
+    systemPrompt += `\nKnowledge Base:\n`;
+    trainingData.forEach(data => {
+      // Parse the embedded content to extract category, question, and answer
+      const content = data.content || '';
+      const categoryMatch = content.match(/Category: ([^\n]+)/);
+      const questionMatch = content.match(/Question: ([^\n]+)/);
+      const answerMatch = content.match(/Answer: ([\s\S]+)$/);
+      
+      const category = categoryMatch ? categoryMatch[1] : 'General';
+      const question = questionMatch ? questionMatch[1] : '';
+      const answer = answerMatch ? answerMatch[1] : content;
+      
+      if (answer.trim()) {
+        systemPrompt += `${category}: ${answer.trim()}\n`;
+      }
+    });
+    systemPrompt += `\n`;
   }
 
   // OPTIMIZATION 8: Only include successful call insights summary (not full transcripts)
@@ -214,6 +229,7 @@ Your goal: Qualify leads and book consultations. Be conversational and concise.
 
   systemPrompt += `
 Guidelines:
+- Use ONLY information from the Knowledge Base above for accurate business details
 - Keep responses under 50 words
 - Ask one qualifying question per message  
 - When qualified, offer to book consultation
