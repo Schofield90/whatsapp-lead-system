@@ -17,7 +17,17 @@ export interface ConversationContext {
   lead: Database['public']['Tables']['leads']['Row'];
   conversation: Database['public']['Tables']['conversations']['Row'];
   messages: Database['public']['Tables']['messages']['Row'][];
-  trainingData: Database['public']['Tables']['training_data']['Row'][];
+  knowledgeBase?: Array<{
+    id: number;
+    type: string;
+    category: string;
+    question?: string;
+    content: string;
+    source: string;
+    metadata?: any;
+    is_active: boolean;
+    created_at: string;
+  }>;
   organization: Database['public']['Tables']['organizations']['Row'];
   callTranscripts?: Array<{
     raw_transcript: string;
@@ -180,7 +190,7 @@ export async function processConversationWithClaude(
 }
 
 function buildOptimizedSystemPrompt(context: ConversationContext): string {
-  const { organization, trainingData, lead } = context;
+  const { organization, knowledgeBase, lead } = context;
   
   // OPTIMIZATION 6: Minimal system prompt
   let systemPrompt = `You are a gym sales agent for ${organization.name}. 
@@ -190,25 +200,32 @@ Your goal: Qualify leads and book consultations. Be conversational and concise.
 
 `;
 
-  // OPTIMIZATION 7: Include actual training data content (essential for AI responses)
-  if (trainingData && trainingData.length > 0) {
-    systemPrompt += `\nKnowledge Base:\n`;
-    trainingData.forEach(data => {
-      // Parse the embedded content to extract category, question, and answer
-      const content = data.content || '';
-      const categoryMatch = content.match(/Category: ([^\n]+)/);
-      const questionMatch = content.match(/Question: ([^\n]+)/);
-      const answerMatch = content.match(/Answer: ([\s\S]+)$/);
-      
-      const category = categoryMatch ? categoryMatch[1] : 'General';
-      const question = questionMatch ? questionMatch[1] : '';
-      const answer = answerMatch ? answerMatch[1] : content;
-      
-      if (answer.trim()) {
-        systemPrompt += `${category}: ${answer.trim()}\n`;
-      }
+  // UNIFIED KNOWLEDGE BASE: This is the ONLY source of truth for all business information
+  if (knowledgeBase && knowledgeBase.length > 0) {
+    systemPrompt += `\n=== BUSINESS KNOWLEDGE BASE (USE ONLY THIS INFORMATION) ===\n`;
+    
+    // Group knowledge by category for better organization
+    const knowledgeByCategory = knowledgeBase.reduce((acc, knowledge) => {
+      const category = knowledge.category || 'General';
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(knowledge);
+      return acc;
+    }, {} as Record<string, typeof knowledgeBase>);
+    
+    Object.entries(knowledgeByCategory).forEach(([category, items]) => {
+      systemPrompt += `\n${category.toUpperCase()}:\n`;
+      items.forEach(item => {
+        if (item.question) {
+          systemPrompt += `Q: ${item.question}\nA: ${item.content}\n\n`;
+        } else {
+          systemPrompt += `${item.content}\n\n`;
+        }
+      });
     });
-    systemPrompt += `\n`;
+    
+    systemPrompt += `=== END KNOWLEDGE BASE ===\n\n`;
+  } else {
+    systemPrompt += `\n=== NO BUSINESS KNOWLEDGE AVAILABLE ===\nYou have no specific business information. Politely ask for details or direct them to contact the business directly.\n\n`;
   }
 
   // OPTIMIZATION 8: Only include successful call insights summary (not full transcripts)
@@ -228,8 +245,11 @@ Your goal: Qualify leads and book consultations. Be conversational and concise.
   }
 
   systemPrompt += `
-Guidelines:
-- Use ONLY information from the Knowledge Base above for accurate business details
+CRITICAL INSTRUCTIONS:
+- NEVER make up business details (addresses, prices, hours, etc.)
+- Use ONLY information from the Business Knowledge Base above
+- If information is not in the knowledge base, say "I don't have that specific information"
+- Never guess or assume business details
 - Keep responses under 50 words
 - Ask one qualifying question per message  
 - When qualified, offer to book consultation

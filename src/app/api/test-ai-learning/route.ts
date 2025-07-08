@@ -35,11 +35,10 @@ export async function POST(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    // Get training data - use service client to get all training data regardless of organization
-    const { data: trainingData } = await supabase
-      .from('training_data')
-      .select('*')
-      .eq('is_active', true);
+    // Get ALL knowledge from unified knowledge base (this is the ONLY source of truth)
+    const knowledgeResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/knowledge-base/get`);
+    const knowledgeResult = await knowledgeResponse.json();
+    const allKnowledge = knowledgeResult.success ? knowledgeResult.data : [];
 
     // Create a mock conversation
     const mockConversation = {
@@ -61,17 +60,17 @@ export async function POST(request: NextRequest) {
       }
     ];
 
-    console.log(`🧪 Testing AI with ${callTranscripts?.length || 0} call transcripts`);
+    console.log(`🧪 Testing AI with ${allKnowledge?.length || 0} knowledge entries from unified knowledge base`);
 
-    // Test the AI learning
+    // Test the AI learning with ONLY the unified knowledge base
     const response = await processConversationWithClaude(
       {
         lead: testLead,
         conversation: mockConversation,
         messages: mockMessages,
-        trainingData: trainingData || [],
+        knowledgeBase: allKnowledge || [], // Use unified knowledge base instead of trainingData
         organization: testLead.organization,
-        callTranscripts: callTranscripts || []
+        callTranscripts: [] // Disable call transcripts to force AI to use only knowledge base
       },
       testMessage || 'Hi, I saw your gym online and I\'m interested in joining. Can you tell me more about your prices?'
     );
@@ -87,10 +86,10 @@ export async function POST(request: NextRequest) {
       testMessage: testMessage || 'Hi, I saw your gym online and I\'m interested in joining. Can you tell me more about your prices?',
       aiResponse: response.response,
       learningData: {
-        totalTranscripts: callTranscripts?.length || 0,
-        sentimentBreakdown,
-        trainingDataCount: trainingData?.length || 0,
-        hasLearning: (callTranscripts?.length || 0) > 0
+        totalTranscripts: 0, // Disabled call transcripts
+        sentimentBreakdown: {},
+        knowledgeBaseCount: allKnowledge?.length || 0,
+        hasLearning: (allKnowledge?.length || 0) > 0
       },
       callInsights: callTranscripts?.slice(0, 3).map(t => ({
         sentiment: t.sentiment,

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,69 +10,54 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const supabase = createServiceClient();
+    // Redirect to unified knowledge base API
+    const knowledgeBaseResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/knowledge-base/save`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: data_type,
+        category: category || 'general',
+        question: question || null,
+        content: content.trim(),
+        source: 'training_form',
+        metadata: {
+          original_endpoint: 'training-data/save',
+          timestamp: new Date().toISOString()
+        }
+      }),
+    });
 
-    // Try to use the training_data table directly with service role (bypasses RLS)
-    // Only use columns that exist in the actual table
-    const { data: savedEntry, error: saveError } = await supabase
-      .from('training_data')
-      .insert({
-        organization_id: '00000000-0000-0000-0000-000000000000', // Use a default org ID for now
-        data_type,
-        content: `Category: ${category || 'general'}\nQuestion: ${question || ''}\nAnswer: ${content}`,
-        is_active: true,
-        version: 1
-      })
-      .select()
-      .single();
+    const result = await knowledgeBaseResponse.json();
 
-    if (saveError) {
-      console.error('Error saving to training_data table:', saveError);
-      
-      // If training_data table doesn't exist, log that we need to create it
-      if (saveError.code === '42P01') { // Table doesn't exist
-        return NextResponse.json({
-          error: 'Training data table does not exist',
-          details: 'Need to create training_data table in Supabase',
-          create_table_needed: true
-        }, { status: 400 });
-      }
-      
+    if (!knowledgeBaseResponse.ok) {
       return NextResponse.json({
-        error: 'Failed to save training data',
-        details: saveError.message,
-        code: saveError.code
-      }, { status: 500 });
+        error: 'Failed to save to knowledge base',
+        details: result.error || 'Unknown error'
+      }, { status: knowledgeBaseResponse.status });
     }
 
-    // Get count of all training data entries
-    const { data: allTrainingEntries } = await supabase
-      .from('training_data')
-      .select('id')
-      .eq('is_active', true);
-
-    const totalCount = allTrainingEntries?.length || 1;
-
-    console.log('🎯 Training data saved to database:', {
-      id: savedEntry.id,
-      data_type,
+    console.log('🎯 Training data redirected to unified knowledge base:', {
+      id: result.data?.id,
+      type: data_type,
       category,
       content: content.substring(0, 100) + '...',
-      total_entries: totalCount
+      total_entries: result.total_count
     });
 
     return NextResponse.json({
       success: true,
-      message: `Training data saved to database! You now have ${totalCount} entries.`,
+      message: `Training data saved to knowledge base! You now have ${result.total_count} entries.`,
       data: {
-        id: savedEntry.id,
+        id: result.data?.id,
         data_type,
         category: category || 'general',
         content: content,
         question: question || '',
-        saved_at: savedEntry.created_at
+        saved_at: result.data?.saved_at
       },
-      total_count: totalCount
+      total_count: result.total_count
     });
 
   } catch (error) {
