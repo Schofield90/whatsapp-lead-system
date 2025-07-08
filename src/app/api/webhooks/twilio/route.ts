@@ -311,7 +311,8 @@ export async function GET(request: NextRequest) {
     message: 'Twilio WhatsApp webhook endpoint is active and ready',
     timestamp: new Date().toISOString(),
     url: request.url,
-    version: '1.1'
+    version: '1.2',
+    status: 'RESTORED_WITH_SAFEGUARDS'
   });
 }
 
