@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
-  // EMERGENCY: Return empty data immediately to stop API loops
-  console.log('📖 Emergency mode: returning empty data to stop API loops');
+  // EMERGENCY: Return error to force stop all loops
+  console.log('🚨 EMERGENCY STOP: Rejecting all requests to stop infinite loops');
   
-  return NextResponse.json({
-    success: true,
-    data: [],
-    count: 0,
-    message: 'Emergency mode: API loops prevented'
+  return new NextResponse('EMERGENCY STOP: API temporarily disabled to prevent infinite loops', { 
+    status: 503,
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    }
   });
 }
