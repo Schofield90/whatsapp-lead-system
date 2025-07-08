@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireOrganization } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
+import { getUserProfile } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    // Use exact same auth pattern as check-training-data endpoint
-    const userProfile = await requireOrganization();
-    const supabase = createServiceClient();
+    const supabase = await createClient();
+    const userProfile = await getUserProfile();
+    
+    if (!userProfile?.profile?.organization_id) {
+      return NextResponse.json({ error: 'Organization not found' }, { status: 401 });
+    }
 
     // Get all training data entries from call_recordings table
     const { data: trainingEntries, error: fetchError } = await supabase

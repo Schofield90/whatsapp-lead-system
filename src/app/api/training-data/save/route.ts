@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireOrganization } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
+import { getUserProfile } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,9 +12,12 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Use exact same auth pattern as check-training-data endpoint
-    const userProfile = await requireOrganization();
-    const supabase = createServiceClient();
+    const supabase = await createClient();
+    const userProfile = await getUserProfile();
+    
+    if (!userProfile?.profile?.organization_id) {
+      return NextResponse.json({ error: 'Organization not found' }, { status: 401 });
+    }
 
     // Store in call_recordings table as a workaround (we know this table works)
     const { data: savedEntry, error: saveError } = await supabase
@@ -43,7 +46,7 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Get count of all training data entries
+    // Get count of all training data entries  
     const { data: allTrainingEntries } = await supabase
       .from('call_recordings')
       .select('id')
