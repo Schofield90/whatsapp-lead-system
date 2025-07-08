@@ -18,7 +18,8 @@ export const KNOWLEDGE_TYPES = {
   PRICING: 'pricing',   // Pricing information
   SCHEDULE: 'schedule', // Schedule and hours
   SERVICES: 'services', // Services offered
-  POLICIES: 'policies'  // Gym policies
+  POLICIES: 'policies', // Gym policies
+  QUIZ: 'quiz'          // Interactive quiz questions and answers
 } as const;
 
 /**
@@ -76,7 +77,9 @@ export async function getRelevantKnowledge(message: string): Promise<KnowledgeEn
       [KNOWLEDGE_TYPES.SCHEDULE]: ['hours', 'open', 'close', 'schedule', 'time', 'when'],
       [KNOWLEDGE_TYPES.SERVICES]: ['personal', 'training', 'classes', 'service', 'offer'],
       [KNOWLEDGE_TYPES.POLICIES]: ['cancel', 'cancellation', 'policy', 'refund', 'terms'],
-      [KNOWLEDGE_TYPES.FAQ]: ['help', 'question', 'how', 'what', 'where', 'why']
+      [KNOWLEDGE_TYPES.FAQ]: ['help', 'question', 'how', 'what', 'where', 'why'],
+      [KNOWLEDGE_TYPES.SOP]: ['process', 'procedure', 'how to', 'step', 'guide', 'protocol', 'onboard', 'qualification', 'complaint', 'consultation'],
+      [KNOWLEDGE_TYPES.QUIZ]: ['quiz', 'test', 'question', 'challenge', 'game', 'exercise', 'workout', 'fitness', 'form', 'safety']
     };
     
     // Find matching knowledge types based on keywords
@@ -141,6 +144,20 @@ export async function addKnowledgeEntry(type: string, content: string): Promise<
 }
 
 /**
+ * Parse quiz content from JSON format
+ * @param quizContent - JSON string containing quiz data
+ * @returns Parsed quiz object or null if invalid
+ */
+function parseQuizContent(quizContent: string): any {
+  try {
+    return JSON.parse(quizContent);
+  } catch (error) {
+    console.error('Error parsing quiz content:', error);
+    return null;
+  }
+}
+
+/**
  * Format knowledge entries for use in AI prompt
  * @param entries - Array of knowledge entries
  * @returns Formatted string for AI context
@@ -165,12 +182,74 @@ export function formatKnowledgeForAI(entries: KnowledgeEntry[]): string {
   
   for (const [type, typeEntries] of Object.entries(groupedEntries)) {
     formattedKnowledge += `\n${type.toUpperCase()}:\n`;
+    
     typeEntries.forEach(entry => {
-      formattedKnowledge += `- ${entry.content}\n`;
+      // Special formatting for quiz content
+      if (type === KNOWLEDGE_TYPES.QUIZ) {
+        const quizData = parseQuizContent(entry.content);
+        if (quizData) {
+          formattedKnowledge += `- QUIZ Q: ${quizData.question}\n`;
+          formattedKnowledge += `  A: ${quizData.answer}\n`;
+          if (quizData.category) {
+            formattedKnowledge += `  Category: ${quizData.category} | Difficulty: ${quizData.difficulty || 'beginner'}\n`;
+          }
+        } else {
+          formattedKnowledge += `- ${entry.content}\n`;
+        }
+      }
+      // Special formatting for SOPs (Standard Operating Procedures)
+      else if (type === KNOWLEDGE_TYPES.SOP) {
+        formattedKnowledge += `- SOP: ${entry.content}\n`;
+      }
+      // Standard formatting for other content types
+      else {
+        formattedKnowledge += `- ${entry.content}\n`;
+      }
     });
   }
   
   formattedKnowledge += '\n=== END KNOWLEDGE ===\n';
   
   return formattedKnowledge;
+}
+
+/**
+ * Get a random quiz question from the knowledge base
+ * @param category - Optional category filter (e.g., 'fitness_guidelines', 'safety')
+ * @returns Promise with a random quiz question or null
+ */
+export async function getRandomQuizQuestion(category?: string): Promise<any> {
+  try {
+    console.log('Fetching random quiz question...');
+    
+    // Get all quiz entries
+    const quizEntries = await getKnowledgeByType([KNOWLEDGE_TYPES.QUIZ]);
+    
+    if (quizEntries.length === 0) {
+      return null;
+    }
+    
+    // Filter by category if specified
+    let filteredQuizzes = quizEntries;
+    if (category) {
+      filteredQuizzes = quizEntries.filter(entry => {
+        const quizData = parseQuizContent(entry.content);
+        return quizData && quizData.category === category;
+      });
+    }
+    
+    if (filteredQuizzes.length === 0) {
+      return null;
+    }
+    
+    // Select random quiz
+    const randomIndex = Math.floor(Math.random() * filteredQuizzes.length);
+    const selectedQuiz = filteredQuizzes[randomIndex];
+    
+    return parseQuizContent(selectedQuiz.content);
+    
+  } catch (error) {
+    console.error('Error getting random quiz question:', error);
+    return null;
+  }
 }

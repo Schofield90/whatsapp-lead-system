@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { getRelevantKnowledge, formatKnowledgeForAI } from '@/lib/knowledge';
+import { getRelevantKnowledge, formatKnowledgeForAI, getRandomQuizQuestion } from '@/lib/knowledge';
 
 // Lazy initialization of Anthropic client to avoid build-time errors
 let anthropic: Anthropic | null = null;
@@ -37,7 +37,12 @@ export async function getClaudeResponse(
     // Step 2: Format knowledge entries for AI context
     const knowledgeContext = formatKnowledgeForAI(relevantKnowledge);
     
-    // Step 3: Create enhanced system prompt with gym business knowledge
+    // Step 3: Check if user is requesting a quiz or asking quiz-related questions
+    const isQuizRequest = message.toLowerCase().includes('quiz') || 
+                         message.toLowerCase().includes('test') || 
+                         message.toLowerCase().includes('challenge');
+    
+    // Step 4: Create enhanced system prompt with gym business knowledge
     const systemPrompt = `You are a gym business WhatsApp chatbot assistant. 
     You represent a fitness gym and help customers with inquiries about memberships, services, and general gym information.
     Keep responses concise and friendly, suitable for WhatsApp messaging.
@@ -46,14 +51,21 @@ export async function getClaudeResponse(
     IMPORTANT: Use the gym business knowledge provided below to answer questions accurately.
     ${knowledgeContext}
     
+    Special Instructions:
+    - SOPs (Standard Operating Procedures): Follow these step-by-step processes when handling specific situations
+    - Quiz Content: Use this fitness knowledge for educational conversations and to create engaging interactions
+    - If user asks for a quiz or fitness challenge, you can reference the quiz questions to create an interactive experience
+    
     Guidelines:
     - Keep responses under 300 characters when possible
     - Use a conversational, friendly tone appropriate for a gym
     - Always refer to the gym business knowledge above when answering questions
+    - Follow SOPs precisely when handling membership inquiries, complaints, or onboarding
     - If information isn't in the knowledge base, say you'll get back to them
     - Focus on being helpful and encouraging about fitness goals
     - Offer to book appointments or tours when appropriate
-    - Ask clarifying questions if needed`;
+    - Ask clarifying questions if needed
+    - When appropriate, engage users with fitness tips or quiz questions to keep them interested`;
 
     console.log('Generating AI response with gym business context...');
     

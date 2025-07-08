@@ -44,14 +44,23 @@ export async function POST(request: NextRequest) {
  */
 export async function GET() {
   return NextResponse.json({
-    message: 'Knowledge integration test endpoint',
-    usage: 'POST with { "message": "What are your prices?" }',
-    examples: [
-      'What are your opening hours?',
-      'How much does membership cost?',
-      'Do you offer personal training?',
-      'What is your cancellation policy?'
-    ],
+    message: 'Enhanced knowledge integration test endpoint with SOPs and Quiz',
+    usage: 'POST with { "message": "Your test message here" }',
+    examples: {
+      pricing: 'What are your membership prices?',
+      schedule: 'What are your opening hours?',
+      services: 'Do you offer personal training?',
+      policies: 'What is your cancellation policy?',
+      sops: 'How do you handle new member onboarding?',
+      quiz: 'Can you give me a fitness quiz?',
+      procedures: 'What is your complaint resolution process?',
+      consultation: 'How does a personal training consultation work?'
+    },
+    newFeatures: {
+      sops: 'Standard Operating Procedures for gym business processes',
+      quiz: 'Interactive fitness quiz questions and answers',
+      enhancedAI: 'AI now follows SOPs and can engage with quiz content'
+    },
     timestamp: new Date().toISOString()
   });
 }
