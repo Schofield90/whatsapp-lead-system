@@ -110,18 +110,10 @@ export default function AITrainingPage() {
   }, [dataLoaded]);
 
   useEffect(() => {
-    isUnmountedRef.current = false;
     generateKnowledgeGaps();
-    fetchSavedTrainingData();
-
-    return () => {
-      // Cleanup on unmount
-      isUnmountedRef.current = true;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []); // Run only once on mount
+    // DISABLED FETCH TO STOP API LOOPS
+    // fetchSavedTrainingData();
+  }, []);
 
 
   const generateKnowledgeGaps = async () => {
@@ -199,9 +191,9 @@ export default function AITrainingPage() {
         const key = `${category}-${question}`;
         setAnswerText(prev => ({ ...prev, [key]: '' }));
         
-        // Refresh the saved data display
-        setDataLoaded(false);
-        fetchSavedTrainingData();
+        // DISABLED REFRESH TO STOP API LOOPS
+        // setDataLoaded(false);
+        // fetchSavedTrainingData();
       } else {
         console.error('Save error:', result);
         if (result.create_table_needed) {
