@@ -35,11 +35,10 @@ export async function POST(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    // Get training data
+    // Get training data - use service client to get all training data regardless of organization
     const { data: trainingData } = await supabase
       .from('training_data')
       .select('*')
-      .eq('organization_id', userProfile.profile.organization_id)
       .eq('is_active', true);
 
     // Create a mock conversation
