@@ -19,7 +19,8 @@ export const KNOWLEDGE_TYPES = {
   SCHEDULE: 'schedule', // Schedule and hours
   SERVICES: 'services', // Services offered
   POLICIES: 'policies', // Gym policies
-  QUIZ: 'quiz'          // Interactive quiz questions and answers
+  QUIZ: 'quiz',         // Interactive quiz questions and answers
+  TRAINING: 'training'  // Training session data and expert answers
 } as const;
 
 /**
