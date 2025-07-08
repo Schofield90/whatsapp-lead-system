@@ -56,27 +56,33 @@ export async function POST(request: NextRequest) {
       return new NextResponse('', { status: 200 });
     }
 
-    // EMERGENCY TEST: Send immediate simple response
+    // SIMPLIFIED: Just send a response immediately without database operations
     setTimeout(async () => {
       try {
-        console.log(`🔄 EMERGENCY: Starting simple test response for: ${messageData.MessageSid}`);
+        console.log(`🚀 SIMPLIFIED: Sending immediate response for: ${messageData.MessageSid}`);
         const { sendWhatsAppMessage } = await import('@/lib/twilio');
         const cleanFrom = messageData.From.replace('whatsapp:', '');
         
-        const testMessage = "Emergency test: I received your message and I'm working on the AI response system!";
+        // Simple response based on message content
+        let response = "Thanks for your message!";
+        const body = (messageData.Body || '').toLowerCase();
         
-        await sendWhatsAppMessage(cleanFrom, testMessage);
-        console.log(`✅ EMERGENCY: Test message sent successfully`);
+        if (body.includes('where') || body.includes('location') || body.includes('based')) {
+          response = "Atlas Fitness has locations in York (Clifton Moor) and Harrogate. Which location interests you?";
+        } else if (body.includes('price') || body.includes('cost') || body.includes('much')) {
+          response = "Our pricing varies by location. York: 6 weeks £199 then £110/month. Harrogate: 6 weeks £249 then £129/month. Would you like to book a consultation?";
+        }
         
-        // Now try the full processing
-        await processMessageAsync(messageData);
-        console.log(`✅ Background processing completed for: ${messageData.MessageSid}`);
+        console.log(`📤 Sending response: "${response}"`);
+        const result = await sendWhatsAppMessage(cleanFrom, response);
+        console.log(`✅ Message sent successfully:`, result.sid);
+        
       } catch (err) {
-        console.error('❌ Background processing failed:', err);
+        console.error('❌ SIMPLIFIED sending failed:', err);
         console.error('Error details:', err.message, err.stack);
         // DO NOT throw - let it fail silently
       }
-    }, 1000);
+    }, 500);
 
     // ALWAYS return 200 immediately with empty body
     return new NextResponse('', { 
