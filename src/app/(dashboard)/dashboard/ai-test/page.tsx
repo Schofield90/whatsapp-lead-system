@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Brain, MessageSquare, Target, HelpCircle, BarChart, Zap } from 'lucide-react';
+import { Brain, MessageSquare, Target, HelpCircle, BarChart, Zap, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface TestResult {
@@ -75,11 +75,25 @@ export default function AITestPage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('test');
   const [answerText, setAnswerText] = useState<{[key: string]: string}>({});
+  const [savedTrainingData, setSavedTrainingData] = useState<any[]>([]);
 
   useEffect(() => {
     fetchTrainingData();
     generateKnowledgeGaps();
+    fetchSavedTrainingData();
   }, []);
+
+  const fetchSavedTrainingData = async () => {
+    try {
+      const response = await fetch('/api/training-data/view');
+      const result = await response.json();
+      if (result.success) {
+        setSavedTrainingData(result.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching saved training data:', error);
+    }
+  };
 
   const fetchTrainingData = async () => {
     try {
@@ -193,6 +207,7 @@ export default function AITestPage() {
         setAnswerText(prev => ({ ...prev, [key]: '' }));
         // Refresh training data
         fetchTrainingData();
+        fetchSavedTrainingData();
       } else {
         toast.error('Failed to save answer');
       }
@@ -304,6 +319,10 @@ export default function AITestPage() {
           <TabsTrigger value="results">
             <BarChart className="mr-2 h-4 w-4" />
             Results
+          </TabsTrigger>
+          <TabsTrigger value="saved">
+            <Save className="mr-2 h-4 w-4" />
+            Saved Answers ({savedTrainingData.length})
           </TabsTrigger>
         </TabsList>
 
@@ -697,6 +716,47 @@ export default function AITestPage() {
               </Card>
             )}
           </div>
+        </TabsContent>
+
+        {/* Saved Answers Tab */}
+        <TabsContent value="saved">
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Saved Training Answers</CardTitle>
+              <CardDescription>
+                All the answers you've provided to improve AI responses
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {savedTrainingData.length > 0 ? (
+                <div className="space-y-4">
+                  {savedTrainingData.map((entry, index) => (
+                    <div key={entry.id || index} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge variant="outline">{entry.category}</Badge>
+                        <span className="text-xs text-gray-500">
+                          {new Date(entry.saved_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <p className="font-medium mb-2">Answer:</p>
+                        <p className="text-gray-700 whitespace-pre-wrap">{entry.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Save className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No answers saved yet</h3>
+                  <p className="text-gray-500 mb-4">Answer some AI questions to see them here</p>
+                  <Button onClick={() => setActiveTab('ai-questions')}>
+                    Go to AI Questions
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

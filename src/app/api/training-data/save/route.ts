@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Simple in-memory storage for now (will reset on deployment)
+let trainingDataStore: Array<{
+  id: string;
+  data_type: string;
+  category: string;
+  content: string;
+  saved_at: string;
+}> = [];
+
 export async function POST(request: NextRequest) {
   try {
     const { data_type, content, category } = await request.json();
@@ -10,27 +19,31 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Log the training data for now - we'll add database storage later
-    console.log('🎯 Training data received:', {
+    const trainingEntry = {
+      id: `training_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      data_type,
+      category: category || 'general',
+      content,
+      saved_at: new Date().toISOString()
+    };
+
+    // Store in memory
+    trainingDataStore.push(trainingEntry);
+
+    // Also log it
+    console.log('🎯 Training data saved:', {
+      id: trainingEntry.id,
       data_type,
       category,
       content: content.substring(0, 100) + '...',
-      timestamp: new Date().toISOString()
+      total_entries: trainingDataStore.length
     });
-
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 500));
 
     return NextResponse.json({
       success: true,
-      message: 'Training data saved successfully',
-      data: {
-        id: `temp_${Date.now()}`,
-        data_type,
-        category,
-        content,
-        saved_at: new Date().toISOString()
-      }
+      message: `Training data saved! You now have ${trainingDataStore.length} entries.`,
+      data: trainingEntry,
+      total_count: trainingDataStore.length
     });
 
   } catch (error) {
@@ -41,3 +54,6 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
+// Export the store so other files can access it
+export { trainingDataStore };
