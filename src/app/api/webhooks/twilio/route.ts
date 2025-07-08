@@ -7,6 +7,10 @@ import { createCalendarService } from '@/lib/google-calendar';
 import { reminderService } from '@/lib/reminder-service';
 
 export async function POST(request: NextRequest) {
+  // EMERGENCY: DISABLE TWILIO WEBHOOK TO STOP INFINITE LOOPS
+  console.log('🚨 EMERGENCY: Twilio webhook DISABLED to stop infinite loops');
+  return new NextResponse('EMERGENCY: Webhook temporarily disabled', { status: 503 });
+  
   try {
     console.log('=== TWILIO WEBHOOK RECEIVED ===');
     const body = await request.text();
