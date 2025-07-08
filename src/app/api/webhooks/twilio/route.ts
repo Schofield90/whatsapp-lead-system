@@ -9,11 +9,16 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const messageData = Object.fromEntries(formData);
     
+    console.log('Parsed message data:', messageData);
+    
     // 2. CRITICAL: Acknowledge immediately for status webhooks
     if (messageData.MessageStatus) {
       console.log(`Status webhook: ${messageData.MessageStatus} for ${messageData.MessageSid}`);
-      return new NextResponse('OK', { status: 200 });
+      return new NextResponse('', { status: 200 });
     }
+    
+    // 3. Log incoming message
+    console.log(`Incoming message from ${messageData.From}: ${messageData.Body}`);
 
     const supabase = createServiceClient();
 
@@ -32,7 +37,7 @@ export async function POST(request: NextRequest) {
     // 4. If duplicate (conflict), acknowledge and exit
     if (error?.code === '23505') { // Postgres unique violation
       console.log(`Duplicate webhook: ${messageData.MessageSid}`);
-      return new NextResponse('OK', { status: 200 });
+      return new NextResponse('', { status: 200 });
     }
 
     // 5. Queue for processing (non-blocking)
@@ -45,13 +50,13 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // 6. ALWAYS return 200 immediately
-    return new NextResponse('OK', { status: 200 });
+    // 6. ALWAYS return 200 immediately - empty response
+    return new NextResponse('', { status: 200 });
 
   } catch (error) {
     console.error('Webhook error:', error);
     // CRITICAL: Always return 200 to prevent Twilio retries
-    return new NextResponse('OK', { status: 200 });
+    return new NextResponse('', { status: 200 });
   }
 }
 
