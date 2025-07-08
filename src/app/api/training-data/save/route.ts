@@ -56,18 +56,28 @@ export async function POST(request: NextRequest) {
         organization_id: profile.organization_id,
         data_type: data_type,
         content: content,
-        version: nextVersion,
+        category: category || null,
         is_active: true,
-        metadata: category ? { category } : null
+        version: nextVersion
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error saving training data:', error);
+      console.error('Database error details:', {
+        error: error,
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        data_type,
+        category,
+        organization_id: profile.organization_id
+      });
       return NextResponse.json({
         error: 'Failed to save training data',
-        details: error.message
+        details: error.message,
+        code: error.code
       }, { status: 500 });
     }
 
