@@ -1,13 +1,21 @@
 export default function Home() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Simple WhatsApp AI Bot</h1>
-        <p className="text-gray-600 mb-8">Phase 1: Basic AI responses only</p>
-        <div className="bg-green-100 p-4 rounded-lg">
-          <p className="text-green-800">✅ Webhook endpoint: /api/simple-chatbot</p>
-          <p className="text-green-800">✅ No authentication required</p>
-          <p className="text-green-800">✅ Simple AI responses</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto text-center">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            WhatsApp Lead System
+          </h1>
+          <p className="text-xl text-gray-600 mb-8">
+            AI-powered WhatsApp lead qualification system using Supabase, Twilio, and Anthropic Claude
+          </p>
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-2xl font-semibold mb-4">Getting Started</h2>
+            <p className="text-gray-700">
+              This is a fresh Next.js 15 project ready for development. 
+              Configure your environment variables and start building your WhatsApp AI sales agent.
+            </p>
+          </div>
         </div>
       </div>
     </div>
