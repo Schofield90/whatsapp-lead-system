@@ -56,29 +56,14 @@ export async function POST(request: NextRequest) {
       return new NextResponse('', { status: 200 });
     }
 
-    // SIMPLIFIED: Just send a response immediately without database operations
+    // Queue for processing with duplicate prevention
     setTimeout(async () => {
       try {
-        console.log(`🚀 SIMPLIFIED: Sending immediate response for: ${messageData.MessageSid}`);
-        const { sendWhatsAppMessage } = await import('@/lib/twilio');
-        const cleanFrom = messageData.From.replace('whatsapp:', '');
-        
-        // Simple response based on message content
-        let response = "Thanks for your message!";
-        const body = (messageData.Body || '').toLowerCase();
-        
-        if (body.includes('where') || body.includes('location') || body.includes('based')) {
-          response = "Atlas Fitness has locations in York (Clifton Moor) and Harrogate. Which location interests you?";
-        } else if (body.includes('price') || body.includes('cost') || body.includes('much')) {
-          response = "Our pricing varies by location. York: 6 weeks £199 then £110/month. Harrogate: 6 weeks £249 then £129/month. Would you like to book a consultation?";
-        }
-        
-        console.log(`📤 Sending response: "${response}"`);
-        const result = await sendWhatsAppMessage(cleanFrom, response);
-        console.log(`✅ Message sent successfully:`, result.sid);
-        
+        console.log(`🔄 Starting message processing for: ${messageData.MessageSid}`);
+        await processMessageAsync(messageData);
+        console.log(`✅ Message processing completed for: ${messageData.MessageSid}`);
       } catch (err) {
-        console.error('❌ SIMPLIFIED sending failed:', err);
+        console.error('❌ Message processing failed:', err);
         console.error('Error details:', err.message, err.stack);
         // DO NOT throw - let it fail silently
       }
@@ -290,10 +275,18 @@ function generateFallbackResponse(message: string): string {
   const lowerMessage = message.toLowerCase();
   
   if (lowerMessage.includes('price') || lowerMessage.includes('cost') || lowerMessage.includes('much')) {
-    return "I'd love to discuss our pricing with you! Could you let me know which location you're interested in - York or Harrogate?";
+    return "Our pricing varies by location. York: 6 weeks £199 then £110/month. Harrogate: 6 weeks £249 then £129/month. Would you like to book a consultation?";
   }
   
-  return "Thanks for your message! I'd love to help you with your fitness goals. Can you tell me a bit more about what you're looking for?";
+  if (lowerMessage.includes('where') || lowerMessage.includes('location') || lowerMessage.includes('based')) {
+    return "Atlas Fitness has locations in York (Clifton Moor) and Harrogate. Which location interests you?";
+  }
+  
+  if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
+    return "Hi there! Welcome to Atlas Fitness. Are you looking to start your fitness journey with us?";
+  }
+  
+  return "Thanks for your message! I'd love to help you with your fitness goals. What specific information can I provide?";
 }
 
 async function sendWhatsAppMessageNoRetry(to: string, body: string, originalSid: string, conversationId?: string) {
