@@ -162,6 +162,14 @@ export async function POST(request: NextRequest) {
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(20) // Get all knowledge base entries (should be manageable size)
+        .then(result => {
+          // If knowledge_base table doesn't exist, return empty result instead of error
+          if (result.error && result.error.code === '42P01') {
+            console.log('Knowledge base table does not exist yet, using empty knowledge base');
+            return { data: [], error: null };
+          }
+          return result;
+        })
     ]);
 
     const messages = messagesResult.data || [];
