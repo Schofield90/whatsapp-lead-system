@@ -36,30 +36,22 @@ export async function POST(request: NextRequest) {
     
     const serviceClient = createServiceClient();
 
-    // Check if similar training data already exists
-    const { data: existingData } = await serviceClient
-      .from('training_data')
-      .select('id, version')
-      .eq('organization_id', profile.organization_id)
-      .eq('data_type', data_type)
-      .order('version', { ascending: false })
-      .limit(1);
-
-    const nextVersion = existingData && existingData.length > 0 
-      ? (existingData[0].version || 0) + 1 
-      : 1;
-
-    // Insert new training data
+    // Insert new training data with minimal required fields
+    const insertData = {
+      organization_id: profile.organization_id,
+      data_type: data_type,
+      content: content,
+      is_active: true
+    };
+    
+    // Only add optional fields if they exist
+    if (category) {
+      insertData.category = category;
+    }
+    
     const { data, error } = await serviceClient
       .from('training_data')
-      .insert({
-        organization_id: profile.organization_id,
-        data_type: data_type,
-        content: content,
-        category: category || null,
-        is_active: true,
-        version: nextVersion
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -81,20 +73,9 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // If this is a new version, deactivate previous versions
-    if (nextVersion > 1) {
-      await serviceClient
-        .from('training_data')
-        .update({ is_active: false })
-        .eq('organization_id', profile.organization_id)
-        .eq('data_type', data_type)
-        .lt('version', nextVersion);
-    }
-
     console.log('✅ Training data saved:', {
       id: data.id,
       type: data_type,
-      version: nextVersion,
       category: category
     });
 
