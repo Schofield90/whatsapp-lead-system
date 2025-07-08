@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireOrganization } from '@/lib/auth';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,14 +11,36 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const userProfile = await requireOrganization();
-    const supabase = createServiceClient();
+    // Get authenticated user
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      return NextResponse.json({
+        error: 'Authentication required'
+      }, { status: 401 });
+    }
+
+    // Get user profile with organization
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('*, organization:organizations(*)')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile?.organization_id) {
+      return NextResponse.json({
+        error: 'User profile or organization not found'
+      }, { status: 401 });
+    }
+    
+    const serviceClient = createServiceClient();
 
     // Check if similar training data already exists
-    const { data: existingData } = await supabase
+    const { data: existingData } = await serviceClient
       .from('training_data')
       .select('id, version')
-      .eq('organization_id', userProfile.profile.organization_id)
+      .eq('organization_id', profile.organization_id)
       .eq('data_type', data_type)
       .order('version', { ascending: false })
       .limit(1);
@@ -29,10 +50,10 @@ export async function POST(request: NextRequest) {
       : 1;
 
     // Insert new training data
-    const { data, error } = await supabase
+    const { data, error } = await serviceClient
       .from('training_data')
       .insert({
-        organization_id: userProfile.profile.organization_id,
+        organization_id: profile.organization_id,
         data_type: data_type,
         content: content,
         version: nextVersion,
@@ -52,10 +73,10 @@ export async function POST(request: NextRequest) {
 
     // If this is a new version, deactivate previous versions
     if (nextVersion > 1) {
-      await supabase
+      await serviceClient
         .from('training_data')
         .update({ is_active: false })
-        .eq('organization_id', userProfile.profile.organization_id)
+        .eq('organization_id', profile.organization_id)
         .eq('data_type', data_type)
         .lt('version', nextVersion);
     }

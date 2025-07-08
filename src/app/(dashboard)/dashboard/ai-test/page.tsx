@@ -178,6 +178,7 @@ export default function AITestPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           data_type: 'sop',
           content: `${category}\n\nQ: ${question}\n\nA: ${answer}`,
