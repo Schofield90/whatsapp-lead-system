@@ -7,10 +7,49 @@ import { createCalendarService } from '@/lib/google-calendar';
 import { reminderService } from '@/lib/reminder-service';
 
 export async function POST(request: NextRequest) {
-  // EMERGENCY: DISABLE TWILIO WEBHOOK TO STOP INFINITE LOOPS
-  console.log('🚨 EMERGENCY: Twilio webhook DISABLED to stop infinite loops');
-  return new NextResponse('EMERGENCY: Webhook temporarily disabled', { status: 503 });
+  const startTime = Date.now();
+  const requestId = Math.random().toString(36).substring(7);
   
+  try {
+    // SAFEGUARD 1: Rate limiting
+    const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
+    const { rateLimiters } = await import('@/lib/rate-limiter');
+    const rateCheck = await rateLimiters.webhook.checkLimit(clientIP);
+    
+    if (!rateCheck.allowed) {
+      console.warn(`🚨 Rate limit exceeded for webhook from ${clientIP}`);
+      return new NextResponse('Rate limit exceeded', { 
+        status: 429,
+        headers: {
+          'Retry-After': Math.ceil((rateCheck.resetTime - Date.now()) / 1000).toString()
+        }
+      });
+    }
+
+    // SAFEGUARD 2: Request timeout
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Request timeout')), 30000) // 30 second timeout
+    );
+
+    const result = await Promise.race([
+      processWebhookSafely(request, requestId),
+      timeout
+    ]);
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ Webhook ${requestId} completed in ${duration}ms`);
+    
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`❌ Webhook ${requestId} failed after ${duration}ms:`, error);
+    
+    // Always return success to prevent Twilio retries on our errors
+    return new NextResponse('Error processed', { status: 200 });
+  }
+}
+
+async function processWebhookSafely(request: NextRequest, requestId: string): Promise<NextResponse> {
   try {
     console.log('=== TWILIO WEBHOOK RECEIVED ===');
     const body = await request.text();
@@ -152,32 +191,33 @@ export async function POST(request: NextRequest) {
         twilio_message_sid: messageSid,
       });
 
-    // OPTIMIZATION: Limit data fetching to reduce token usage
+    // SAFEGUARD 3: Use safe database client with automatic fallbacks
+    const { safeDatabase } = await import('@/lib/safe-database');
+    
     const [messagesResult, knowledgeBaseResult] = await Promise.all([
-      supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conversation.id)
-        .order('created_at', { ascending: false })
-        .limit(10), // Only last 10 messages
-      supabase
-        .from('knowledge_base')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(20) // Get all knowledge base entries (should be manageable size)
-        .then(result => {
-          // If knowledge_base table doesn't exist, return empty result instead of error
-          if (result.error && result.error.code === '42P01') {
-            console.log('Knowledge base table does not exist yet, using empty knowledge base');
-            return { data: [], error: null };
-          }
-          return result;
-        })
+      safeDatabase.safeQuery(
+        () => supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', conversation.id)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        [], // Fallback to empty messages
+        'messages'
+      ),
+      safeDatabase.getKnowledgeBase()
     ]);
 
     const messages = messagesResult.data || [];
     const knowledgeBase = knowledgeBaseResult.data || [];
+    
+    // Log if using fallbacks
+    if (messagesResult.fromFallback) {
+      console.warn(`⚠️ Using fallback for messages in webhook ${requestId}`);
+    }
+    if (knowledgeBaseResult.fromFallback) {
+      console.warn(`⚠️ Using fallback for knowledge base in webhook ${requestId}`);
+    }
 
     // OPTIMIZATION: Minimal logging to reduce noise
     console.log(`🎯 Context: ${messages.length} msgs, ${knowledgeBase.length} knowledge entries`);
@@ -190,10 +230,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Process with Claude (with fallback)
-    let claudeResponse;
-    try {
-      claudeResponse = await processConversationWithClaude(
+    // SAFEGUARD 4: Protected Claude API call with circuit breaker
+    const { circuitBreakers } = await import('@/lib/circuit-breaker');
+    
+    const claudeResponse = await circuitBreakers.claude.execute(
+      () => processConversationWithClaude(
         {
           lead,
           conversation,
@@ -203,17 +244,15 @@ export async function POST(request: NextRequest) {
           callTranscripts: [] // Disable call transcripts to force use of knowledge base only
         },
         messageBody
-      );
-    } catch (claudeError) {
-      console.error('Error processing with Claude:', claudeError);
-      // Fallback response when Claude API fails
-      claudeResponse = {
+      ),
+      // Fallback response when Claude circuit is open or fails
+      () => ({
         response: "Hi! Thanks for reaching out. I'd love to help you with your fitness goals. Could you tell me a bit about what you're looking to achieve?",
         shouldBookCall: false,
         leadQualified: false,
         suggestedActions: []
-      };
-    }
+      })
+    );
 
     // Send response via WhatsApp
     const twilioMessage = await sendWhatsAppMessage(from, claudeResponse.response);
