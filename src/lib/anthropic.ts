@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { getRelevantKnowledge, formatKnowledgeForAI, getRandomQuizQuestion } from '@/lib/knowledge';
+import { getRelevantKnowledge, formatKnowledgeForAI, getRandomQuizQuestion, getKnowledgeByType, KNOWLEDGE_TYPES } from '@/lib/knowledge';
 
 // Lazy initialization of Anthropic client to avoid build-time errors
 let anthropic: Anthropic | null = null;
@@ -30,44 +30,69 @@ export async function getClaudeResponse(
   phoneNumber: string
 ): Promise<string> {
   try {
-    // Step 1: Fetch relevant knowledge from Supabase based on user message
-    console.log('Fetching relevant knowledge for user message...');
-    const relevantKnowledge = await getRelevantKnowledge(message);
+    // Step 1: Always fetch ALL SOPs and quiz content for every incoming message
+    console.log('Fetching all SOPs and quiz knowledge for WhatsApp message...');
+    const sopAndQuizKnowledge = await getKnowledgeByType([KNOWLEDGE_TYPES.SOP, KNOWLEDGE_TYPES.QUIZ]);
     
-    // Step 2: Format knowledge entries for AI context
-    const knowledgeContext = formatKnowledgeForAI(relevantKnowledge);
+    // Step 2: Also fetch contextually relevant knowledge based on message content
+    console.log('Fetching contextually relevant knowledge for user message...');
+    const contextualKnowledge = await getRelevantKnowledge(message);
     
-    // Step 3: Check if user is requesting a quiz or asking quiz-related questions
+    // Step 3: Combine ALL knowledge sources for comprehensive AI context
+    const allKnowledge = [...sopAndQuizKnowledge, ...contextualKnowledge];
+    
+    // Step 4: Remove duplicates by ID to avoid redundant information
+    const uniqueKnowledge = allKnowledge.filter((knowledge, index, self) => 
+      index === self.findIndex(k => k.id === knowledge.id)
+    );
+    
+    // Step 5: Format all knowledge entries for AI context
+    const knowledgeContext = formatKnowledgeForAI(uniqueKnowledge);
+    
+    // Step 6: Check if user is requesting a quiz or asking quiz-related questions
     const isQuizRequest = message.toLowerCase().includes('quiz') || 
                          message.toLowerCase().includes('test') || 
                          message.toLowerCase().includes('challenge');
     
-    // Step 4: Create enhanced system prompt with gym business knowledge
-    const systemPrompt = `You are a gym business WhatsApp chatbot assistant. 
-    You represent a fitness gym and help customers with inquiries about memberships, services, and general gym information.
+    // Step 7: Create enhanced system prompt with comprehensive gym business knowledge
+    const systemPrompt = `You are a professional gym business WhatsApp sales assistant. 
+    You represent a fitness gym and your primary goal is to help convert leads into paying members while providing excellent customer service.
     Keep responses concise and friendly, suitable for WhatsApp messaging.
     The user is messaging from phone number: ${phoneNumber}
     
-    IMPORTANT: Use the gym business knowledge provided below to answer questions accurately.
+    CRITICAL: You have access to comprehensive gym business knowledge below. ALWAYS use this knowledge to inform your responses.
     ${knowledgeContext}
     
-    Special Instructions:
-    - SOPs (Standard Operating Procedures): Follow these step-by-step processes when handling specific situations
-    - Quiz Content: Use this fitness knowledge for educational conversations and to create engaging interactions
-    - If user asks for a quiz or fitness challenge, you can reference the quiz questions to create an interactive experience
+    MANDATORY BEHAVIOR:
+    - SOPs (Standard Operating Procedures): Follow these step-by-step processes EXACTLY when handling specific situations
+    - Sales Processes: Use the sales techniques and scripts provided in your knowledge base
+    - Quiz Content: Use fitness knowledge for educational conversations and engagement
+    - Pricing Information: Always use the exact pricing from your knowledge base
+    - Policies: Follow all gym policies and procedures as specified
     
-    Guidelines:
-    - Keep responses under 300 characters when possible
-    - Use a conversational, friendly tone appropriate for a gym
-    - Always refer to the gym business knowledge above when answering questions
-    - Follow SOPs precisely when handling membership inquiries, complaints, or onboarding
-    - If information isn't in the knowledge base, say you'll get back to them
-    - Focus on being helpful and encouraging about fitness goals
-    - Offer to book appointments or tours when appropriate
-    - Ask clarifying questions if needed
-    - When appropriate, engage users with fitness tips or quiz questions to keep them interested`;
+    SALES-FOCUSED GUIDELINES:
+    - Keep responses under 300 characters when possible for WhatsApp
+    - Use a conversational, friendly tone that builds rapport
+    - ALWAYS refer to your knowledge base before answering questions
+    - Follow SOPs precisely for lead qualification, objection handling, and closing
+    - Use proven sales techniques from your training when appropriate
+    - Create urgency and value when discussing memberships
+    - Ask qualifying questions to understand prospect needs
+    - Offer trials, tours, and consultations when relevant
+    - Handle objections using the scripts in your knowledge base
+    - If specific information isn't available, offer to connect them with a team member
+    - Focus on benefits that matter to the prospect
+    - When appropriate, engage with fitness tips or quiz questions to build interest`;
 
-    console.log('Generating AI response with gym business context...');
+    // Step 8: Log comprehensive knowledge context for debugging
+    console.log(`Generating AI response with comprehensive knowledge context:
+    - Total knowledge entries: ${uniqueKnowledge.length}
+    - SOPs included: ${uniqueKnowledge.filter(k => k.type === KNOWLEDGE_TYPES.SOP).length}
+    - Quiz entries included: ${uniqueKnowledge.filter(k => k.type === KNOWLEDGE_TYPES.QUIZ).length}
+    - Other knowledge types: ${uniqueKnowledge.filter(k => k.type !== KNOWLEDGE_TYPES.SOP && k.type !== KNOWLEDGE_TYPES.QUIZ).length}
+    `);
+    
+    console.log('Generating AI response with comprehensive gym business knowledge...');
     
     const anthropicClient = getAnthropicClient();
     const response = await anthropicClient.messages.create({
