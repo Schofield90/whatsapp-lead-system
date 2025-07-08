@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -51,16 +51,40 @@ export default function AITrainingPage() {
   const [activeTab, setActiveTab] = useState('ai-questions');
   const [answerText, setAnswerText] = useState<{[key: string]: string}>({});
   const [savedTrainingData, setSavedTrainingData] = useState<any[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isUnmountedRef = useRef(false);
 
-  useEffect(() => {
-    generateKnowledgeGaps();
-    fetchSavedTrainingData();
-  }, []);
+  const fetchSavedTrainingData = useCallback(async () => {
+    // Prevent multiple simultaneous requests
+    if (dataLoaded || isUnmountedRef.current) {
+      return;
+    }
 
-  const fetchSavedTrainingData = async () => {
+    // Cancel any existing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
+
     try {
-      // Load from database via API
-      const response = await fetch('/api/training-data/view');
+      const response = await fetch('/api/training-data/view', {
+        signal: abortControllerRef.current.signal,
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      });
+
+      // Check if component is still mounted
+      if (isUnmountedRef.current) {
+        return;
+      }
+
       const result = await response.json();
       
       if (response.ok && result.success) {
@@ -68,16 +92,36 @@ export default function AITrainingPage() {
         console.log(`📖 Loaded ${result.count} training entries from database`);
       } else {
         console.error('Fetch error:', result);
-        if (result.create_table_needed) {
-          console.log('⚠️ Training data table needs to be created in Supabase');
-        }
         setSavedTrainingData([]);
       }
-    } catch (error) {
+      
+      setDataLoaded(true);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('Fetch aborted');
+        return;
+      }
       console.error('Error fetching saved training data:', error);
-      setSavedTrainingData([]);
+      if (!isUnmountedRef.current) {
+        setSavedTrainingData([]);
+        setDataLoaded(true);
+      }
     }
-  };
+  }, [dataLoaded]);
+
+  useEffect(() => {
+    isUnmountedRef.current = false;
+    generateKnowledgeGaps();
+    fetchSavedTrainingData();
+
+    return () => {
+      // Cleanup on unmount
+      isUnmountedRef.current = true;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []); // Run only once on mount
 
 
   const generateKnowledgeGaps = async () => {
@@ -156,6 +200,7 @@ export default function AITrainingPage() {
         setAnswerText(prev => ({ ...prev, [key]: '' }));
         
         // Refresh the saved data display
+        setDataLoaded(false);
         fetchSavedTrainingData();
       } else {
         console.error('Save error:', result);
