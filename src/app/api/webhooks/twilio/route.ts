@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       });
 
     // OPTIMIZATION: Limit data fetching to reduce token usage
-    const [messagesResult, trainingDataResult, callTranscriptsResult] = await Promise.all([
+    const [messagesResult, knowledgeBaseResult] = await Promise.all([
       supabase
         .from('messages')
         .select('*')
@@ -157,33 +157,24 @@ export async function POST(request: NextRequest) {
         .order('created_at', { ascending: false })
         .limit(10), // Only last 10 messages
       supabase
-        .from('training_data')
-        .select('data_type, content')
-        .eq('organization_id', lead.organization_id)
+        .from('knowledge_base')
+        .select('*')
         .eq('is_active', true)
-        .limit(5), // Only active training data
-      supabase
-        .from('call_transcripts')
-        .select('sentiment, sales_insights, created_at')
-        .eq('organization_id', lead.organization_id)
-        .eq('sentiment', 'positive') // Only positive calls
         .order('created_at', { ascending: false })
-        .limit(3) // Only 3 recent positive calls for insights
+        .limit(20) // Get all knowledge base entries (should be manageable size)
     ]);
 
     const messages = messagesResult.data || [];
-    const trainingData = trainingDataResult.data || [];
-    const callTranscripts = callTranscriptsResult.data || [];
+    const knowledgeBase = knowledgeBaseResult.data || [];
 
     // OPTIMIZATION: Minimal logging to reduce noise
-    console.log(`🎯 Context: ${messages.length} msgs, ${trainingData.length} training, ${callTranscripts.length} insights`);
+    console.log(`🎯 Context: ${messages.length} msgs, ${knowledgeBase.length} knowledge entries`);
     
     // Check for data errors
-    if (messagesResult.error || trainingDataResult.error || callTranscriptsResult.error) {
+    if (messagesResult.error || knowledgeBaseResult.error) {
       console.error('Data fetch errors:', {
         messages: messagesResult.error,
-        training: trainingDataResult.error, 
-        transcripts: callTranscriptsResult.error
+        knowledgeBase: knowledgeBaseResult.error
       });
     }
 
@@ -195,9 +186,9 @@ export async function POST(request: NextRequest) {
           lead,
           conversation,
           messages,
-          trainingData,
+          knowledgeBase,
           organization: lead.organization,
-          callTranscripts,
+          callTranscripts: [] // Disable call transcripts to force use of knowledge base only
         },
         messageBody
       );
