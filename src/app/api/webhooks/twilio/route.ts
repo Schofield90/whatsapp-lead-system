@@ -59,10 +59,12 @@ export async function POST(request: NextRequest) {
     // Queue for processing (non-blocking) 
     setImmediate(async () => {
       try {
-        console.log(`Processing message: ${messageData.MessageSid}`);
+        console.log(`🔄 Starting background processing for: ${messageData.MessageSid}`);
         await processMessageAsync(messageData);
+        console.log(`✅ Background processing completed for: ${messageData.MessageSid}`);
       } catch (err) {
-        console.error('Background processing error:', err);
+        console.error('❌ Background processing failed:', err);
+        console.error('Error details:', err.message, err.stack);
         // DO NOT throw - let it fail silently
       }
     });
@@ -86,10 +88,13 @@ export async function POST(request: NextRequest) {
 async function processMessageAsync(messageData: any) {
   const { MessageSid, From, Body, To } = messageData;
   
+  console.log(`📱 Processing message ${MessageSid} from ${From}: "${Body}"`);
+  
   try {
     const supabase = createServiceClient();
     
     // 1. Check if already processed (extra safety)
+    console.log(`🔍 Checking if already processed: ${MessageSid}`);
     const { data: existing } = await supabase
       .from('messages')
       .select('id')
@@ -98,11 +103,12 @@ async function processMessageAsync(messageData: any) {
       .single();
 
     if (existing) {
-      console.log(`Already responded to: ${MessageSid}`);
+      console.log(`⏭️ Already responded to: ${MessageSid}`);
       return;
     }
 
     // 2. Simple rate limit check
+    console.log(`⏱️ Checking rate limits`);
     const fiveSecondsAgo = new Date(Date.now() - 5 * 1000);
     const { data: recentMessages } = await supabase
       .from('messages')
@@ -112,14 +118,21 @@ async function processMessageAsync(messageData: any) {
       .limit(1);
 
     if (recentMessages && recentMessages.length > 0) {
-      console.log(`Rate limited - recent message sent`);
+      console.log(`🚫 Rate limited - recent message sent`);
       return;
     }
 
     // 3. Get organization and lead data
+    console.log(`👤 Getting lead data for ${From}`);
     const { organization, lead, conversation } = await getOrCreateLeadData(supabase, From, To);
     
+    if (!organization || !lead || !conversation) {
+      console.error('❌ Failed to get/create lead data');
+      throw new Error('Lead data creation failed');
+    }
+    
     // 4. Get training data and recent messages
+    console.log(`📚 Getting knowledge base and messages`);
     const [knowledgeResult, messagesResult] = await Promise.all([
       supabase
         .from('knowledge_base')
@@ -129,7 +142,7 @@ async function processMessageAsync(messageData: any) {
       supabase
         .from('messages')
         .select('*')
-        .eq('conversation_id', conversation?.id)
+        .eq('conversation_id', conversation.id)
         .order('created_at', { ascending: false })
         .limit(10)
     ]);
@@ -137,22 +150,27 @@ async function processMessageAsync(messageData: any) {
     const knowledgeBase = knowledgeResult.data || [];
     const messages = messagesResult.data || [];
 
-    console.log(`📚 Knowledge: ${knowledgeBase.length} entries, Messages: ${messages.length}`);
+    console.log(`📊 Data loaded - Knowledge: ${knowledgeBase.length} entries, Messages: ${messages.length}`);
 
     // 5. Generate AI response with training data
+    console.log(`🤖 Generating AI response`);
     let aiResponse: string;
     try {
       aiResponse = await generateAIResponse(Body, knowledgeBase, messages, organization, lead);
+      console.log(`✅ AI response generated: "${aiResponse.substring(0, 50)}..."`);
     } catch (aiError) {
-      console.error('AI generation failed, using fallback:', aiError);
+      console.error('🔄 AI generation failed, using fallback:', aiError);
       aiResponse = generateFallbackResponse(Body);
+      console.log(`🔄 Fallback response: "${aiResponse.substring(0, 50)}..."`);
     }
 
     // 6. Send response - NO RETRIES!
-    await sendWhatsAppMessageNoRetry(From, aiResponse, MessageSid, conversation?.id);
+    console.log(`📤 Sending WhatsApp message`);
+    await sendWhatsAppMessageNoRetry(From, aiResponse, MessageSid, conversation.id);
 
   } catch (error) {
-    console.error('Process message error:', error);
+    console.error('❌ Process message error:', error);
+    console.error('Error stack:', error.stack);
     // DO NOT throw - let it fail silently
   }
 }
