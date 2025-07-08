@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Brain, MessageSquare, Target, HelpCircle, BarChart, Zap, Save } from 'lucide-react';
+import { Brain, MessageSquare, Target, HelpCircle, BarChart, Zap, Save, Database } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface TestResult {
@@ -70,6 +70,7 @@ export default function AITestPage() {
   const [activeTab, setActiveTab] = useState('test');
   const [answerText, setAnswerText] = useState<{[key: string]: string}>({});
   const [savedTrainingData, setSavedTrainingData] = useState<any[]>([]);
+  const [migrating, setMigrating] = useState(false);
 
   useEffect(() => {
     fetchTrainingData();
@@ -263,6 +264,33 @@ export default function AITestPage() {
     }
   };
 
+  const migrateToKnowledgeBase = async () => {
+    setMigrating(true);
+    try {
+      const response = await fetch('/api/knowledge-base/migrate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        toast.success(`Migrated ${result.migrated} entries to unified knowledge base!`);
+        // Refresh the saved data
+        fetchSavedTrainingData();
+      } else {
+        toast.error('Migration failed: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Error migrating data:', error);
+      toast.error('Failed to migrate data');
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   const presetMessages = [
     "Hi, what are your membership prices?",
     "I'm new to fitness and feeling intimidated. Can you help?",
@@ -281,6 +309,15 @@ export default function AITestPage() {
             Test your AI's knowledge and identify areas for improvement
           </p>
         </div>
+        <Button
+          onClick={migrateToKnowledgeBase}
+          disabled={migrating}
+          variant="outline"
+          className="gap-2"
+        >
+          <Database className="h-4 w-4" />
+          {migrating ? 'Migrating...' : 'Migrate to Unified Knowledge Base'}
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
