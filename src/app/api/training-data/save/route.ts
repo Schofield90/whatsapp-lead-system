@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// Simple in-memory storage for now (will reset on deployment)
-let trainingDataStore: Array<{
-  id: string;
-  data_type: string;
-  category: string;
-  content: string;
-  saved_at: string;
-}> = [];
+import { addTrainingData, getTrainingDataCount } from '@/lib/storage';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,8 +19,9 @@ export async function POST(request: NextRequest) {
       saved_at: new Date().toISOString()
     };
 
-    // Store in memory
-    trainingDataStore.push(trainingEntry);
+    // Store using shared storage
+    addTrainingData(trainingEntry);
+    const totalCount = getTrainingDataCount();
 
     // Also log it
     console.log('🎯 Training data saved:', {
@@ -36,14 +29,14 @@ export async function POST(request: NextRequest) {
       data_type,
       category,
       content: content.substring(0, 100) + '...',
-      total_entries: trainingDataStore.length
+      total_entries: totalCount
     });
 
     return NextResponse.json({
       success: true,
-      message: `Training data saved! You now have ${trainingDataStore.length} entries.`,
+      message: `Training data saved! You now have ${totalCount} entries.`,
       data: trainingEntry,
-      total_count: trainingDataStore.length
+      total_count: totalCount
     });
 
   } catch (error) {
@@ -54,6 +47,3 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
-
-// Export the store so other files can access it
-export { trainingDataStore };

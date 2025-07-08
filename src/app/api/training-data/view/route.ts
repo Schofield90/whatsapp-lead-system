@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// Simple in-memory storage for now (will reset on deployment)
-let trainingDataStore: Array<{
-  id: string;
-  data_type: string;
-  category: string;
-  content: string;
-  saved_at: string;
-}> = [];
+import { getTrainingData, getTrainingDataCount } from '@/lib/storage';
 
 export async function GET(request: NextRequest) {
   try {
+    const data = getTrainingData();
+    const count = getTrainingDataCount();
+    
+    console.log(`📖 Fetching training data: ${count} entries found`);
+    
     return NextResponse.json({
       success: true,
-      data: trainingDataStore,
-      count: trainingDataStore.length,
-      message: `Found ${trainingDataStore.length} training data entries`
+      data: data,
+      count: count,
+      message: `Found ${count} training data entries`
     });
   } catch (error) {
     console.error('Error viewing training data:', error);
@@ -25,6 +22,3 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
-
-// Export the store so other files can access it
-export { trainingDataStore };
