@@ -11,52 +11,52 @@ export async function POST(request: NextRequest) {
     
     console.log('Generating training question, focus area:', focusArea, 'previous questions:', previousQuestions);
     
-    // Define question categories and templates
+    // Define sales-focused question categories
     const questionCategories = [
-      'membership_policies',
-      'pricing_strategies', 
-      'equipment_management',
-      'class_scheduling',
-      'customer_service',
-      'safety_protocols',
-      'staff_management',
-      'marketing_approach',
-      'facility_operations',
-      'member_retention'
+      'lead_qualification',
+      'objection_handling', 
+      'closing_techniques',
+      'pricing_conversations',
+      'membership_benefits',
+      'trial_conversions',
+      'referral_strategies',
+      'retention_sales',
+      'upselling_services',
+      'competitor_positioning'
     ];
     
     // Select category (rotate through different areas)
     const categoryIndex = previousQuestions % questionCategories.length;
     const selectedCategory = questionCategories[categoryIndex];
     
-    // Create prompt for Claude to generate relevant questions
-    const questionPrompt = `You are helping train a gym business AI by generating specific questions about gym operations. 
+    // Create prompt for Claude to generate sales-focused questions
+    const questionPrompt = `You are helping train a gym sales AI by generating specific questions about gym sales and lead conversion. 
     
-    Generate ONE specific, actionable question about: ${selectedCategory}
+    Generate ONE specific, actionable sales question about: ${selectedCategory}
     
     The question should:
-    - Be specific to gym business operations
-    - Help gather practical knowledge that would help an AI assistant
-    - Focus on real situations a gym owner faces
-    - Be answerable with concrete, actionable information
-    - Help the AI better serve gym customers and members
+    - Be specific to gym sales and lead conversion
+    - Help gather practical sales knowledge for WhatsApp conversations
+    - Focus on real sales situations a gym owner faces
+    - Be answerable with concrete sales techniques and scripts
+    - Help the AI better convert leads and close sales via WhatsApp
     
-    Categories to focus on:
-    - membership_policies: Membership rules, cancellation policies, payment terms
-    - pricing_strategies: How pricing is structured, discounts, promotions
-    - equipment_management: Maintenance schedules, replacement policies, safety checks
-    - class_scheduling: How classes are planned, instructor management, capacity limits
-    - customer_service: Handling complaints, member satisfaction, communication style
-    - safety_protocols: Emergency procedures, injury protocols, equipment safety
-    - staff_management: Hiring, training, scheduling, performance management
-    - marketing_approach: How you attract new members, retention strategies
-    - facility_operations: Opening/closing procedures, cleaning protocols, space management
-    - member_retention: How you keep members engaged and reduce churn
+    Sales categories to focus on:
+    - lead_qualification: How to identify serious prospects, qualifying questions, budget discovery
+    - objection_handling: Common objections (price, time, location) and how to overcome them
+    - closing_techniques: How to ask for the sale, creating urgency, trial closes
+    - pricing_conversations: How to present pricing, justify value, handle price objections
+    - membership_benefits: How to articulate benefits that matter most to prospects
+    - trial_conversions: Converting trial users to paying members, follow-up strategies
+    - referral_strategies: Getting referrals from existing members, referral incentives
+    - retention_sales: Preventing cancellations, win-back campaigns, upgrade conversations
+    - upselling_services: Selling personal training, classes, additional services
+    - competitor_positioning: How to handle competitor comparisons and differentiate
     
     Current focus: ${selectedCategory}
     
     Return ONLY the question - no additional text or formatting.
-    Make it specific and practical.`;
+    Make it specific and sales-focused.`;
 
     // Generate question using Claude
     const anthropicClient = getAnthropicClient();
@@ -107,13 +107,13 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error generating training question:', error);
     
-    // Fallback question if Claude fails
+    // Fallback sales questions if Claude fails
     const fallbackQuestions = [
-      "How do you handle member complaints about overcrowded classes?",
-      "What's your process for onboarding new personal trainers?", 
-      "How do you determine when gym equipment needs maintenance or replacement?",
-      "What's your approach to handling membership cancellation requests?",
-      "How do you manage peak hours when the gym gets very busy?"
+      "How do you handle price objections when a prospect says your membership is too expensive?",
+      "What's your best closing technique for converting trial members to paying members?", 
+      "How do you qualify leads to identify serious prospects vs browsers?",
+      "What benefits do you emphasize most when selling memberships via WhatsApp?",
+      "How do you handle objections about not having enough time to work out?"
     ];
     
     const randomFallback = fallbackQuestions[Math.floor(Math.random() * fallbackQuestions.length)];

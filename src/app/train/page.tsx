@@ -127,10 +127,10 @@ export default function TrainPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            🎓 AI Training Session
+            🎓 Sales AI Training Session
           </h1>
           <p className="text-xl text-gray-600">
-            Help your gym AI learn by answering questions about your business
+            Train your AI to become a sales expert by answering questions about your sales processes
           </p>
         </div>
 
@@ -193,7 +193,7 @@ export default function TrainPage() {
                   value={userAnswer}
                   onChange={(e) => setUserAnswer(e.target.value)}
                   placeholder="Share your knowledge and expertise..."
-                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                   rows={4}
                   disabled={isLoading}
                 />
@@ -234,12 +234,13 @@ export default function TrainPage() {
 
         {/* Training Tips */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-3">Training Tips</h3>
+          <h3 className="text-lg font-semibold text-blue-900 mb-3">Sales Training Tips</h3>
           <ul className="text-blue-800 space-y-2">
-            <li>• Be specific and detailed in your answers</li>
-            <li>• Include step-by-step processes where applicable</li>
-            <li>• Share real examples from your gym experience</li>
-            <li>• The more context you provide, the better the AI will respond to customers</li>
+            <li>• <strong>Include specific scripts:</strong> Share exact words and phrases you use</li>
+            <li>• <strong>Share objection responses:</strong> How you handle price, time, and competitor objections</li>
+            <li>• <strong>Provide closing techniques:</strong> Your best methods for asking for the sale</li>
+            <li>• <strong>Include qualification questions:</strong> How you identify serious prospects</li>
+            <li>• <strong>Add real examples:</strong> Successful sales conversations from your experience</li>
             <li>• Skip questions you're not sure about - accuracy is more important than quantity</li>
           </ul>
         </div>
