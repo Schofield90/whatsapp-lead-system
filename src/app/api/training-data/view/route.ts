@@ -6,9 +6,10 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceClient();
 
     // Get all training data entries from training_data table using service role
+    // Only select columns that exist in the actual table
     const { data: trainingEntries, error: fetchError } = await supabase
       .from('training_data')
-      .select('id, data_type, category, content, question, created_at, is_active')
+      .select('id, data_type, content, created_at, is_active, version')
       .eq('is_active', true)
       .order('created_at', { ascending: false });
 
@@ -32,14 +33,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Format the data for the frontend
-    const formattedData = (trainingEntries || []).map(entry => ({
-      id: entry.id,
-      data_type: entry.data_type,
-      category: entry.category || 'general',
-      content: entry.content,
-      question: entry.question,
-      saved_at: entry.created_at
-    }));
+    const formattedData = (trainingEntries || []).map(entry => {
+      // Parse category and question from content if they're embedded
+      const content = entry.content || '';
+      const categoryMatch = content.match(/Category: ([^\n]+)/);
+      const questionMatch = content.match(/Question: ([^\n]+)/);
+      const answerMatch = content.match(/Answer: ([\s\S]+)$/);
+      
+      return {
+        id: entry.id,
+        data_type: entry.data_type,
+        category: categoryMatch ? categoryMatch[1] : 'general',
+        content: answerMatch ? answerMatch[1] : content,
+        question: questionMatch ? questionMatch[1] : '',
+        saved_at: entry.created_at
+      };
+    });
 
     const count = formattedData.length;
     

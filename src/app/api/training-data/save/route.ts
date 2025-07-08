@@ -14,14 +14,13 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceClient();
 
     // Try to use the training_data table directly with service role (bypasses RLS)
+    // Only use columns that exist in the actual table
     const { data: savedEntry, error: saveError } = await supabase
       .from('training_data')
       .insert({
         organization_id: '00000000-0000-0000-0000-000000000000', // Use a default org ID for now
         data_type,
-        category: category || 'general',
-        content,
-        question: question || null,
+        content: `Category: ${category || 'general'}\nQuestion: ${question || ''}\nAnswer: ${content}`,
         is_active: true,
         version: 1
       })
@@ -70,8 +69,8 @@ export async function POST(request: NextRequest) {
         id: savedEntry.id,
         data_type,
         category: category || 'general',
-        content,
-        question,
+        content: content,
+        question: question || '',
         saved_at: savedEntry.created_at
       },
       total_count: totalCount
