@@ -60,18 +60,12 @@ interface KnowledgeGap {
   context: string;
 }
 
-interface AIQuestion {
-  question: string;
-  importance: string;
-  why_needed: string;
-}
 
 export default function AITestPage() {
   const [testMessage, setTestMessage] = useState('');
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [trainingData, setTrainingData] = useState<TrainingDataSummary | null>(null);
   const [knowledgeGaps, setKnowledgeGaps] = useState<KnowledgeGap[]>([]);
-  const [aiQuestions, setAiQuestions] = useState<{category: string, questions: AIQuestion[]}[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('test');
   const [answerText, setAnswerText] = useState<{[key: string]: string}>({});
@@ -159,35 +153,6 @@ export default function AITestPage() {
     setKnowledgeGaps(gaps);
   };
 
-  const generateAIQuestions = async (category: string, context: string) => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/ai-ask-questions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ category, context }),
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        setAiQuestions(prev => {
-          const filtered = prev.filter(item => item.category !== category);
-          return [...filtered, { category, questions: result.questions }];
-        });
-        toast.success(`AI generated ${result.questions.length} questions for ${category}`);
-      } else {
-        toast.error('Failed to generate AI questions');
-      }
-    } catch (error) {
-      console.error('Error generating AI questions:', error);
-      toast.error('Failed to generate AI questions');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const saveAnswer = async (category: string, question: string, answer: string) => {
     if (!answer.trim()) {
@@ -328,13 +293,9 @@ export default function AITestPage() {
             <Brain className="mr-2 h-4 w-4" />
             Knowledge Status
           </TabsTrigger>
-          <TabsTrigger value="gaps">
-            <HelpCircle className="mr-2 h-4 w-4" />
-            Knowledge Gaps
-          </TabsTrigger>
           <TabsTrigger value="ai-questions">
             <Target className="mr-2 h-4 w-4" />
-            AI Questions
+            Business Questions
           </TabsTrigger>
           <TabsTrigger value="results">
             <BarChart className="mr-2 h-4 w-4" />
@@ -458,198 +419,91 @@ export default function AITestPage() {
           </div>
         </TabsContent>
 
-        {/* Knowledge Gaps Tab */}
-        <TabsContent value="gaps">
+        {/* Business Questions Tab */}
+        <TabsContent value="ai-questions">
           <Card>
             <CardHeader>
-              <CardTitle>Knowledge Gap Analysis</CardTitle>
+              <CardTitle>Business Questions</CardTitle>
               <CardDescription>
-                Areas where your AI might need more training data
+                Answer these questions to help your AI better qualify and book leads
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {knowledgeGaps.map((gap, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <HelpCircle className="h-5 w-5 text-orange-500" />
-                        <h3 className="font-medium">{gap.category}</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Answer the questions below to build your AI's knowledge about your business.
+                </p>
+                
+                <div className="space-y-4">
+                  {knowledgeGaps.map((gap, index) => (
+                    <div key={index} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <Target className="h-5 w-5 text-blue-500" />
+                          <h3 className="font-medium">{gap.category}</h3>
+                        </div>
+                        <Badge variant={gap.importance === 'high' ? 'destructive' : gap.importance === 'medium' ? 'default' : 'secondary'}>
+                          {gap.importance} priority
+                        </Badge>
                       </div>
-                      <Badge variant={gap.importance === 'high' ? 'destructive' : gap.importance === 'medium' ? 'default' : 'secondary'}>
-                        {gap.importance} priority
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-700 mb-2">{gap.question}</p>
-                    <p className="text-xs text-gray-500">{gap.context}</p>
-                    <div className="mt-3 flex space-x-2">
+                      <p className="text-sm text-gray-700 mb-3">{gap.question}</p>
+                      
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button size="sm" variant="outline">
-                            Add Training Data
+                          <Button size="sm" variant="outline" className="w-full">
+                            Answer This Question
                           </Button>
                         </DialogTrigger>
-                        <DialogContent>
+                        <DialogContent className="max-w-2xl">
                           <DialogHeader>
-                            <DialogTitle>Add Training Data for {gap.category}</DialogTitle>
+                            <DialogTitle>{gap.question}</DialogTitle>
                             <DialogDescription>
-                              Provide information to help the AI answer: "{gap.question}"
+                              {gap.context}
                             </DialogDescription>
                           </DialogHeader>
                           <div className="space-y-4">
-                            <Textarea
-                              placeholder="Enter the information the AI should know about this topic..."
-                              rows={5}
-                            />
+                            <div>
+                              <Label htmlFor={`answer-${index}`}>Your Answer</Label>
+                              <Textarea
+                                id={`answer-${index}`}
+                                placeholder="Provide detailed information to help the AI answer this question..."
+                                rows={6}
+                                value={answerText[`${gap.category}-${gap.question}`] || ''}
+                                onChange={(e) => {
+                                  const key = `${gap.category}-${gap.question}`;
+                                  setAnswerText(prev => ({ ...prev, [key]: e.target.value }));
+                                }}
+                              />
+                            </div>
                             <div className="flex justify-end space-x-2">
-                              <Button variant="outline">Cancel</Button>
-                              <Button>Add to Training</Button>
+                              <Button 
+                                variant="outline" 
+                                onClick={() => {
+                                  const key = `${gap.category}-${gap.question}`;
+                                  setAnswerText(prev => ({ ...prev, [key]: '' }));
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button 
+                                onClick={() => {
+                                  const key = `${gap.category}-${gap.question}`;
+                                  const answer = answerText[key] || '';
+                                  saveAnswer(gap.category, gap.question, answer);
+                                }}
+                              >
+                                Save Answer
+                              </Button>
                             </div>
                           </div>
                         </DialogContent>
                       </Dialog>
-                      <Button size="sm" variant="ghost" onClick={() => testPresetMessage(gap.question)}>
-                        Test This
-                      </Button>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* AI Questions Tab */}
-        <TabsContent value="ai-questions">
-          <div className="grid gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>AI-Generated Questions</CardTitle>
-                <CardDescription>
-                  Let the AI ask you questions to fill knowledge gaps
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-600 mb-4">
-                    Select a category below and the AI will generate specific questions to help improve its knowledge in that area.
-                  </p>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {knowledgeGaps.map((gap, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        className="text-left justify-start h-auto p-4"
-                        onClick={() => generateAIQuestions(gap.category, gap.context)}
-                        disabled={loading}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <HelpCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" />
-                          <div className="text-left">
-                            <div className="font-medium text-sm">{gap.category}</div>
-                            <div className="text-xs text-gray-500 mt-1">{gap.context}</div>
-                          </div>
-                        </div>
-                      </Button>
-                    ))}
-                  </div>
-
-                  {aiQuestions.length > 0 && (
-                    <div className="mt-6 space-y-4">
-                      <h3 className="font-semibold text-lg">AI Generated Questions</h3>
-                      {aiQuestions.map((categoryData, categoryIndex) => (
-                        <Card key={categoryIndex}>
-                          <CardHeader>
-                            <CardTitle className="text-lg">{categoryData.category}</CardTitle>
-                            <CardDescription>
-                              The AI has {categoryData.questions.length} questions for this category
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-3">
-                              {categoryData.questions.map((question, questionIndex) => (
-                                <div key={questionIndex} className="border rounded-lg p-4">
-                                  <div className="flex items-start justify-between mb-2">
-                                    <div className="flex items-center space-x-2">
-                                      <Target className="h-4 w-4 text-green-500" />
-                                      <Badge variant={question.importance === 'high' ? 'destructive' : 'default'}>
-                                        {question.importance} priority
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                  <h4 className="font-medium text-sm mb-2">{question.question}</h4>
-                                  <p className="text-xs text-gray-500 mb-3">{question.why_needed}</p>
-                                  
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button size="sm" variant="outline" className="w-full">
-                                        Answer This Question
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-2xl">
-                                      <DialogHeader>
-                                        <DialogTitle>{question.question}</DialogTitle>
-                                        <DialogDescription>
-                                          {question.why_needed}
-                                        </DialogDescription>
-                                      </DialogHeader>
-                                      <div className="space-y-4">
-                                        <div>
-                                          <Label htmlFor={`answer-${questionIndex}`}>Your Answer</Label>
-                                          <Textarea
-                                            id={`answer-${questionIndex}`}
-                                            placeholder="Provide detailed information to help the AI answer this question..."
-                                            rows={6}
-                                            value={answerText[`${categoryData.category}-${question.question}`] || ''}
-                                            onChange={(e) => {
-                                              const key = `${categoryData.category}-${question.question}`;
-                                              setAnswerText(prev => ({ ...prev, [key]: e.target.value }));
-                                            }}
-                                          />
-                                        </div>
-                                        <div className="flex justify-end space-x-2">
-                                          <Button 
-                                            variant="outline" 
-                                            onClick={() => {
-                                              const key = `${categoryData.category}-${question.question}`;
-                                              setAnswerText(prev => ({ ...prev, [key]: '' }));
-                                            }}
-                                          >
-                                            Cancel
-                                          </Button>
-                                          <Button 
-                                            onClick={() => {
-                                              const key = `${categoryData.category}-${question.question}`;
-                                              const answer = answerText[key] || '';
-                                              saveAnswer(categoryData.category, question.question, answer);
-                                            }}
-                                          >
-                                            Save Answer
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </DialogContent>
-                                  </Dialog>
-                                </div>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-
-                  {loading && (
-                    <div className="text-center py-8">
-                      <Brain className="mx-auto h-8 w-8 text-blue-500 animate-pulse mb-2" />
-                      <p className="text-sm text-gray-500">AI is generating questions...</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
 
         {/* Results Tab */}
