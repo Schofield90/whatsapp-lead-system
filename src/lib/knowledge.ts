@@ -124,22 +124,65 @@ export async function addKnowledgeEntry(type: string, content: string): Promise<
   try {
     console.log('Adding new knowledge entry:', { type, content: content.substring(0, 100) + '...' });
     
-    const { data, error } = await supabaseAdmin()
+    // Try using admin client first (preferred for bypassing RLS)
+    let client;
+    let clientType;
+    
+    try {
+      client = supabaseAdmin();
+      clientType = 'admin';
+      console.log('Using Supabase admin client for knowledge insertion');
+    } catch (adminError) {
+      console.warn('Admin client not available, falling back to regular client:', adminError);
+      // Import the regular client as fallback
+      const { supabase } = await import('@/lib/supabase');
+      client = supabase();
+      clientType = 'anon';
+      console.log('Using Supabase anon client for knowledge insertion');
+    }
+    
+    const { data, error } = await client
       .from('knowledge')
       .insert([{ type, content }])
       .select()
       .single();
     
     if (error) {
-      console.error('Error adding knowledge entry:', error);
+      console.error(`Error adding knowledge entry with ${clientType} client:`, {
+        error: error,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      
+      // Provide specific error messages for common issues
+      if (error.code === '42501') {
+        console.error('RLS Policy Error: Check that Row Level Security policies allow insert operations');
+      }
+      if (error.code === '23505') {
+        console.error('Duplicate Entry Error: This entry may already exist');
+      }
+      if (error.message?.includes('JWT')) {
+        console.error('Authentication Error: Check your Supabase keys and RLS policies');
+      }
+      
       return null;
     }
     
-    console.log('Knowledge entry added successfully:', data.id);
+    console.log(`Knowledge entry added successfully with ${clientType} client:`, data.id);
     return data as unknown as KnowledgeEntry;
     
   } catch (error) {
     console.error('Error in addKnowledgeEntry:', error);
+    
+    // Log environment variable status for debugging
+    console.log('Environment check:', {
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    });
+    
     return null;
   }
 }
