@@ -1,26 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServiceClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   try {
-    // Redirect to unified knowledge base API
-    const knowledgeBaseResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/knowledge-base/get`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const supabase = createServiceClient();
 
-    const result = await knowledgeBaseResponse.json();
+    // Get all knowledge from the unified knowledge base directly
+    const { data: knowledgeEntries, error: fetchError } = await supabase
+      .from('knowledge_base')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
 
-    if (!knowledgeBaseResponse.ok) {
+    if (fetchError) {
+      console.error('Error fetching knowledge base:', fetchError);
+      
+      // If knowledge_base table doesn't exist yet, return empty
+      if (fetchError.code === '42P01') {
+        return NextResponse.json({
+          success: true,
+          data: [],
+          count: 0,
+          message: 'Knowledge base not yet created'
+        });
+      }
+      
       return NextResponse.json({
-        error: 'Failed to fetch from knowledge base',
-        details: result.error || 'Unknown error'
-      }, { status: knowledgeBaseResponse.status });
+        error: 'Failed to fetch knowledge base',
+        details: fetchError.message,
+        code: fetchError.code
+      }, { status: 500 });
     }
 
     // Format the data for backward compatibility with the training data view
-    const formattedData = (result.data || []).map((entry: any) => ({
+    const formattedData = (knowledgeEntries || []).map((entry: any) => ({
       id: entry.id,
       data_type: entry.type,
       category: entry.category || 'general',

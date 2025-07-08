@@ -35,10 +35,16 @@ export async function POST(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    // Get ALL knowledge from unified knowledge base (this is the ONLY source of truth)
-    const knowledgeResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/knowledge-base/get`);
-    const knowledgeResult = await knowledgeResponse.json();
-    const allKnowledge = knowledgeResult.success ? knowledgeResult.data : [];
+    // Get ALL knowledge from unified knowledge base directly
+    const { data: allKnowledge, error: knowledgeError } = await supabase
+      .from('knowledge_base')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+    
+    if (knowledgeError && knowledgeError.code !== '42P01') {
+      console.error('Error fetching knowledge base:', knowledgeError);
+    }
 
     // Create a mock conversation
     const mockConversation = {

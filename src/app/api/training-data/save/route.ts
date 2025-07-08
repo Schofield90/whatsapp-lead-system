@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServiceClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,13 +11,12 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Redirect to unified knowledge base API
-    const knowledgeBaseResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/knowledge-base/save`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const supabase = createServiceClient();
+
+    // Save directly to unified knowledge base
+    const { data: savedEntry, error: saveError } = await supabase
+      .from('knowledge_base')
+      .insert({
         type: data_type,
         category: category || 'general',
         question: question || null,
@@ -25,39 +25,50 @@ export async function POST(request: NextRequest) {
         metadata: {
           original_endpoint: 'training-data/save',
           timestamp: new Date().toISOString()
-        }
-      }),
-    });
+        },
+        is_active: true,
+        version: 1
+      })
+      .select()
+      .single();
 
-    const result = await knowledgeBaseResponse.json();
-
-    if (!knowledgeBaseResponse.ok) {
+    if (saveError) {
+      console.error('Error saving to knowledge base:', saveError);
       return NextResponse.json({
-        error: 'Failed to save to knowledge base',
-        details: result.error || 'Unknown error'
-      }, { status: knowledgeBaseResponse.status });
+        error: 'Failed to save knowledge',
+        details: saveError.message,
+        code: saveError.code
+      }, { status: 500 });
     }
 
-    console.log('🎯 Training data redirected to unified knowledge base:', {
-      id: result.data?.id,
+    // Get total count
+    const { data: allEntries } = await supabase
+      .from('knowledge_base')
+      .select('id')
+      .eq('is_active', true);
+
+    const totalCount = allEntries?.length || 1;
+
+    console.log('🎯 Training data saved to unified knowledge base:', {
+      id: savedEntry.id,
       type: data_type,
       category,
       content: content.substring(0, 100) + '...',
-      total_entries: result.total_count
+      total_entries: totalCount
     });
 
     return NextResponse.json({
       success: true,
-      message: `Training data saved to knowledge base! You now have ${result.total_count} entries.`,
+      message: `Training data saved to knowledge base! You now have ${totalCount} entries.`,
       data: {
-        id: result.data?.id,
+        id: savedEntry.id,
         data_type,
         category: category || 'general',
         content: content,
         question: question || '',
-        saved_at: result.data?.saved_at
+        saved_at: savedEntry.created_at
       },
-      total_count: result.total_count
+      total_count: totalCount
     });
 
   } catch (error) {
