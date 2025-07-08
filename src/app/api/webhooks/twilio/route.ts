@@ -56,10 +56,19 @@ export async function POST(request: NextRequest) {
       return new NextResponse('', { status: 200 });
     }
 
-    // Queue for processing (non-blocking) 
-    setImmediate(async () => {
+    // EMERGENCY TEST: Send immediate simple response
+    setTimeout(async () => {
       try {
-        console.log(`🔄 Starting background processing for: ${messageData.MessageSid}`);
+        console.log(`🔄 EMERGENCY: Starting simple test response for: ${messageData.MessageSid}`);
+        const { sendWhatsAppMessage } = await import('@/lib/twilio');
+        const cleanFrom = messageData.From.replace('whatsapp:', '');
+        
+        const testMessage = "Emergency test: I received your message and I'm working on the AI response system!";
+        
+        await sendWhatsAppMessage(cleanFrom, testMessage);
+        console.log(`✅ EMERGENCY: Test message sent successfully`);
+        
+        // Now try the full processing
         await processMessageAsync(messageData);
         console.log(`✅ Background processing completed for: ${messageData.MessageSid}`);
       } catch (err) {
@@ -67,7 +76,7 @@ export async function POST(request: NextRequest) {
         console.error('Error details:', err.message, err.stack);
         // DO NOT throw - let it fail silently
       }
-    });
+    }, 1000);
 
     // ALWAYS return 200 immediately with empty body
     return new NextResponse('', { 
