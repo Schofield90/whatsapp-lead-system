@@ -57,8 +57,12 @@ NEXTAUTH_SECRET=your_nextauth_secret
 ### 3. Database Setup
 
 1. Create a new Supabase project
-2. Run the database migrations (to be created)
-3. Set up Row Level Security (RLS) policies
+2. Run the SQL script to create the knowledge table:
+   ```sql
+   -- Copy and run the contents of supabase/new-knowledge-schema.sql
+   -- in your Supabase SQL Editor
+   ```
+3. Verify the setup by running the test queries in `supabase/test-connection.sql`
 
 ### 4. Twilio WhatsApp Setup
 
