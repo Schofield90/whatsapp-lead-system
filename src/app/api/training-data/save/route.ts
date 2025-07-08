@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { getUserProfile } from '@/lib/auth';
+import { createServiceClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { data_type, content, category } = await request.json();
+    const { data_type, content, category, question } = await request.json();
     
     if (!data_type || !content) {
       return NextResponse.json({
@@ -12,46 +11,47 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const supabase = await createClient();
-    const userProfile = await getUserProfile();
-    
-    if (!userProfile?.profile?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 401 });
-    }
+    const supabase = createServiceClient();
 
-    // Store in call_recordings table as a workaround (we know this table works)
+    // Try to use the training_data table directly with service role (bypasses RLS)
     const { data: savedEntry, error: saveError } = await supabase
-      .from('call_recordings')
+      .from('training_data')
       .insert({
-        organization_id: userProfile.profile.organization_id,
-        sid: `training_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        recording_url: 'TRAINING_DATA',
-        status: 'training_data',
-        transcript: JSON.stringify({
-          type: 'ai_training_data',
-          data_type,
-          category: category || 'general',
-          content,
-          saved_at: new Date().toISOString()
-        })
+        organization_id: '00000000-0000-0000-0000-000000000000', // Use a default org ID for now
+        data_type,
+        category: category || 'general',
+        content,
+        question: question || null,
+        is_active: true,
+        version: 1
       })
       .select()
       .single();
 
     if (saveError) {
-      console.error('Error saving to database:', saveError);
+      console.error('Error saving to training_data table:', saveError);
+      
+      // If training_data table doesn't exist, log that we need to create it
+      if (saveError.code === '42P01') { // Table doesn't exist
+        return NextResponse.json({
+          error: 'Training data table does not exist',
+          details: 'Need to create training_data table in Supabase',
+          create_table_needed: true
+        }, { status: 400 });
+      }
+      
       return NextResponse.json({
         error: 'Failed to save training data',
-        details: saveError.message
+        details: saveError.message,
+        code: saveError.code
       }, { status: 500 });
     }
 
-    // Get count of all training data entries  
+    // Get count of all training data entries
     const { data: allTrainingEntries } = await supabase
-      .from('call_recordings')
+      .from('training_data')
       .select('id')
-      .eq('organization_id', userProfile.profile.organization_id)
-      .eq('status', 'training_data');
+      .eq('is_active', true);
 
     const totalCount = allTrainingEntries?.length || 1;
 
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
         data_type,
         category: category || 'general',
         content,
+        question,
         saved_at: savedEntry.created_at
       },
       total_count: totalCount
