@@ -116,11 +116,40 @@ async function processMessageAsync(messageData: any) {
       return;
     }
 
-    // 3. Generate AI response (simplified)
-    const aiResponse = await generateSimpleResponse(Body);
+    // 3. Get organization and lead data
+    const { organization, lead, conversation } = await getOrCreateLeadData(supabase, From, To);
+    
+    // 4. Get training data and recent messages
+    const [knowledgeResult, messagesResult] = await Promise.all([
+      supabase
+        .from('knowledge_base')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversation?.id)
+        .order('created_at', { ascending: false })
+        .limit(10)
+    ]);
 
-    // 4. Send response - NO RETRIES!
-    await sendWhatsAppMessageNoRetry(From, aiResponse, MessageSid);
+    const knowledgeBase = knowledgeResult.data || [];
+    const messages = messagesResult.data || [];
+
+    console.log(`📚 Knowledge: ${knowledgeBase.length} entries, Messages: ${messages.length}`);
+
+    // 5. Generate AI response with training data
+    let aiResponse: string;
+    try {
+      aiResponse = await generateAIResponse(Body, knowledgeBase, messages, organization, lead);
+    } catch (aiError) {
+      console.error('AI generation failed, using fallback:', aiError);
+      aiResponse = generateFallbackResponse(Body);
+    }
+
+    // 6. Send response - NO RETRIES!
+    await sendWhatsAppMessageNoRetry(From, aiResponse, MessageSid, conversation?.id);
 
   } catch (error) {
     console.error('Process message error:', error);
@@ -128,7 +157,113 @@ async function processMessageAsync(messageData: any) {
   }
 }
 
-async function sendWhatsAppMessageNoRetry(to: string, body: string, originalSid: string) {
+// Get or create lead data
+async function getOrCreateLeadData(supabase: any, from: string, to: string) {
+  try {
+    // Clean phone numbers
+    const customerPhone = from.replace('whatsapp:', '');
+    const businessPhone = to.replace('whatsapp:', '');
+
+    // Get organization (using first one for now)
+    const { data: organization } = await supabase
+      .from('organizations')
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (!organization) {
+      throw new Error('No organization found');
+    }
+
+    // Find or create lead
+    let { data: lead } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('phone', customerPhone)
+      .eq('organization_id', organization.id)
+      .single();
+
+    if (!lead) {
+      const { data: newLead } = await supabase
+        .from('leads')
+        .insert({
+          phone: customerPhone,
+          name: 'WhatsApp User',
+          organization_id: organization.id,
+          status: 'new',
+          source: 'whatsapp'
+        })
+        .select()
+        .single();
+      lead = newLead;
+    }
+
+    // Find or create conversation
+    let { data: conversation } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('lead_id', lead.id)
+      .eq('status', 'active')
+      .single();
+
+    if (!conversation) {
+      const { data: newConversation } = await supabase
+        .from('conversations')
+        .insert({
+          lead_id: lead.id,
+          organization_id: organization.id,
+          status: 'active'
+        })
+        .select()
+        .single();
+      conversation = newConversation;
+    }
+
+    return { organization, lead, conversation };
+  } catch (error) {
+    console.error('Error getting lead data:', error);
+    return { organization: null, lead: null, conversation: null };
+  }
+}
+
+// Generate AI response using Claude with training data
+async function generateAIResponse(message: string, knowledgeBase: any[], messages: any[], organization: any, lead: any): Promise<string> {
+  try {
+    const { processConversationWithClaude } = await import('@/lib/claude-optimized');
+    
+    const context = {
+      lead: lead || { name: 'WhatsApp User', status: 'new' },
+      conversation: { id: 'temp' },
+      messages: messages || [],
+      knowledgeBase,
+      organization: organization || { name: 'Atlas Fitness' },
+      callTranscripts: []
+    };
+
+    const response = await processConversationWithClaude(context, message);
+    return response.response;
+  } catch (error) {
+    console.error('Claude AI failed:', error);
+    throw error;
+  }
+}
+
+// Fallback response when AI fails
+function generateFallbackResponse(message: string): string {
+  if (!message) {
+    return "Hi! Thanks for reaching out to Atlas Fitness. How can I help you today?";
+  }
+  
+  const lowerMessage = message.toLowerCase();
+  
+  if (lowerMessage.includes('price') || lowerMessage.includes('cost') || lowerMessage.includes('much')) {
+    return "I'd love to discuss our pricing with you! Could you let me know which location you're interested in - York or Harrogate?";
+  }
+  
+  return "Thanks for your message! I'd love to help you with your fitness goals. Can you tell me a bit more about what you're looking for?";
+}
+
+async function sendWhatsAppMessageNoRetry(to: string, body: string, originalSid: string, conversationId?: string) {
   try {
     // Clean phone number
     const cleanTo = to.replace('whatsapp:', '');
@@ -148,6 +283,7 @@ async function sendWhatsAppMessageNoRetry(to: string, body: string, originalSid:
           twilio_message_sid: message.sid,
           direction: 'outbound',
           content: body,
+          conversation_id: conversationId,
           created_at: new Date().toISOString()
         });
     } catch (dbError) {
@@ -182,41 +318,6 @@ async function sendWhatsAppMessageNoRetry(to: string, body: string, originalSid:
   }
 }
 
-// Simplified AI response - NO EXTERNAL CALLS
-async function generateSimpleResponse(message: string): Promise<string> {
-  if (!message || message.trim() === '') {
-    return "Hi! Thanks for reaching out to Atlas Fitness. How can I help you today?";
-  }
-  
-  const lowerMessage = message.toLowerCase().trim();
-  
-  // Enhanced pricing detection
-  if (lowerMessage.includes('price') || lowerMessage.includes('cost') || lowerMessage.includes('£') || 
-      lowerMessage.includes('much') || lowerMessage.includes('programme') || lowerMessage.includes('program') ||
-      lowerMessage.includes('membership') || lowerMessage.includes('fee')) {
-    return "Our pricing varies by location. York: 6 weeks £199 then £110/month. Harrogate: 6 weeks £249 then £129/month. Would you like to book a consultation to discuss this further?";
-  }
-  
-  if (lowerMessage.includes('location') || lowerMessage.includes('where') || lowerMessage.includes('address') ||
-      lowerMessage.includes('based')) {
-    return "Atlas Fitness has locations in York (Clifton Moor) and Harrogate. Which location interests you?";
-  }
-  
-  if (lowerMessage.includes('book') || lowerMessage.includes('appointment') || lowerMessage.includes('consultation')) {
-    return "Perfect! I'd love to schedule a consultation for you. What's the best time - today or tomorrow around 10am?";
-  }
-  
-  if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
-    return "Hi there! Welcome to Atlas Fitness. Are you looking to start your fitness journey with us?";
-  }
-  
-  // York-specific response
-  if (lowerMessage.includes('york')) {
-    return "Great choice! Our York location is at Clifton Moor. The 6-week transformation is £199, then £110/month. When would you like to start?";
-  }
-  
-  return "Thanks for your message! I'd love to help you with your fitness goals. What specific information can I provide?";
-}
 
 // GET endpoint for testing webhook URL
 export async function GET(request: NextRequest) {
