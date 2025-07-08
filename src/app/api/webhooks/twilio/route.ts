@@ -5,24 +5,40 @@ export async function POST(request: NextRequest) {
   try {
     console.log('=== EMERGENCY TWILIO WEBHOOK ===');
     
-    // 1. Parse webhook data FAST
-    const formData = await request.formData();
-    const messageData = Object.fromEntries(formData);
+    // Parse webhook data - try both formData and URLSearchParams
+    let messageData: any = {};
     
-    console.log('Parsed message data:', messageData);
+    try {
+      const body = await request.text();
+      console.log('Raw webhook body:', body);
+      
+      // Try URLSearchParams first (more reliable for Twilio)
+      const params = new URLSearchParams(body);
+      messageData = Object.fromEntries(params);
+      
+      console.log('Parsed message data:', messageData);
+    } catch (parseError) {
+      console.error('Parse error:', parseError);
+      return new NextResponse('', { status: 200 });
+    }
     
-    // 2. CRITICAL: Acknowledge immediately for status webhooks
+    // CRITICAL: Acknowledge immediately for status webhooks
     if (messageData.MessageStatus) {
       console.log(`Status webhook: ${messageData.MessageStatus} for ${messageData.MessageSid}`);
       return new NextResponse('', { status: 200 });
     }
     
-    // 3. Log incoming message
-    console.log(`Incoming message from ${messageData.From}: ${messageData.Body}`);
+    // Only process if we have a real message
+    if (!messageData.Body || !messageData.From || !messageData.MessageSid) {
+      console.log('Incomplete message data, skipping');
+      return new NextResponse('', { status: 200 });
+    }
+    
+    console.log(`Incoming message from ${messageData.From}: "${messageData.Body}"`);
 
     const supabase = createServiceClient();
 
-    // 3. Try to insert with conflict handling - NO DUPLICATES
+    // Try to insert with conflict handling - NO DUPLICATES
     const { data, error } = await supabase
       .from('messages')
       .insert({
@@ -34,15 +50,16 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    // 4. If duplicate (conflict), acknowledge and exit
+    // If duplicate (conflict), acknowledge and exit
     if (error?.code === '23505') { // Postgres unique violation
       console.log(`Duplicate webhook: ${messageData.MessageSid}`);
       return new NextResponse('', { status: 200 });
     }
 
-    // 5. Queue for processing (non-blocking)
-    process.nextTick(async () => {
+    // Queue for processing (non-blocking) 
+    setImmediate(async () => {
       try {
+        console.log(`Processing message: ${messageData.MessageSid}`);
         await processMessageAsync(messageData);
       } catch (err) {
         console.error('Background processing error:', err);
@@ -50,13 +67,19 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // 6. ALWAYS return 200 immediately - empty response
-    return new NextResponse('', { status: 200 });
+    // ALWAYS return 200 immediately with empty body
+    return new NextResponse('', { 
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' }
+    });
 
   } catch (error) {
     console.error('Webhook error:', error);
     // CRITICAL: Always return 200 to prevent Twilio retries
-    return new NextResponse('', { status: 200 });
+    return new NextResponse('', { 
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' }
+    });
   }
 }
 
@@ -167,11 +190,15 @@ async function generateSimpleResponse(message: string): Promise<string> {
   
   const lowerMessage = message.toLowerCase().trim();
   
-  if (lowerMessage.includes('price') || lowerMessage.includes('cost') || lowerMessage.includes('£')) {
-    return "Our pricing varies by location. York: 6 weeks £199 then £110/month. Harrogate: 6 weeks £249 then £129/month. Would you like to book a consultation?";
+  // Enhanced pricing detection
+  if (lowerMessage.includes('price') || lowerMessage.includes('cost') || lowerMessage.includes('£') || 
+      lowerMessage.includes('much') || lowerMessage.includes('programme') || lowerMessage.includes('program') ||
+      lowerMessage.includes('membership') || lowerMessage.includes('fee')) {
+    return "Our pricing varies by location. York: 6 weeks £199 then £110/month. Harrogate: 6 weeks £249 then £129/month. Would you like to book a consultation to discuss this further?";
   }
   
-  if (lowerMessage.includes('location') || lowerMessage.includes('where') || lowerMessage.includes('address')) {
+  if (lowerMessage.includes('location') || lowerMessage.includes('where') || lowerMessage.includes('address') ||
+      lowerMessage.includes('based')) {
     return "Atlas Fitness has locations in York (Clifton Moor) and Harrogate. Which location interests you?";
   }
   
@@ -181,6 +208,11 @@ async function generateSimpleResponse(message: string): Promise<string> {
   
   if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
     return "Hi there! Welcome to Atlas Fitness. Are you looking to start your fitness journey with us?";
+  }
+  
+  // York-specific response
+  if (lowerMessage.includes('york')) {
+    return "Great choice! Our York location is at Clifton Moor. The 6-week transformation is £199, then £110/month. When would you like to start?";
   }
   
   return "Thanks for your message! I'd love to help you with your fitness goals. What specific information can I provide?";
