@@ -85,13 +85,13 @@ export default function AITestPage() {
 
   const fetchSavedTrainingData = async () => {
     try {
-      const response = await fetch('/api/training-data/view');
-      const result = await response.json();
-      if (result.success) {
-        setSavedTrainingData(result.data || []);
-      }
+      // Load directly from localStorage - simple and reliable!
+      const savedData = JSON.parse(localStorage.getItem('aiTrainingData') || '[]');
+      setSavedTrainingData(savedData);
+      console.log(`📖 Loaded ${savedData.length} training entries from localStorage`);
     } catch (error) {
       console.error('Error fetching saved training data:', error);
+      setSavedTrainingData([]);
     }
   };
 
@@ -186,31 +186,34 @@ export default function AITestPage() {
     }
 
     try {
-      // Here we'll save the answer as training data
-      const response = await fetch('/api/training-data/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          data_type: 'sop',
-          content: `${category}\n\nQ: ${question}\n\nA: ${answer}`,
-          category: category
-        }),
-      });
+      // Save directly to localStorage - simple and reliable!
+      const trainingEntry = {
+        id: `training_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        data_type: 'sop',
+        category: category,
+        question: question,
+        content: answer,
+        saved_at: new Date().toISOString()
+      };
 
-      if (response.ok) {
-        toast.success('Answer saved! This will improve AI responses.');
-        // Clear the answer text for this question
-        const key = `${category}-${question}`;
-        setAnswerText(prev => ({ ...prev, [key]: '' }));
-        // Refresh training data
-        fetchTrainingData();
-        fetchSavedTrainingData();
-      } else {
-        toast.error('Failed to save answer');
-      }
+      // Get existing data
+      const existingData = JSON.parse(localStorage.getItem('aiTrainingData') || '[]');
+      
+      // Add new entry
+      existingData.push(trainingEntry);
+      
+      // Save back to localStorage
+      localStorage.setItem('aiTrainingData', JSON.stringify(existingData));
+
+      toast.success(`Answer saved locally! You now have ${existingData.length} training entries.`);
+      
+      // Clear the answer text for this question
+      const key = `${category}-${question}`;
+      setAnswerText(prev => ({ ...prev, [key]: '' }));
+      
+      // Refresh the saved data display
+      fetchSavedTrainingData();
+      
     } catch (error) {
       console.error('Error saving answer:', error);
       toast.error('Failed to save answer');
@@ -739,6 +742,12 @@ export default function AITestPage() {
                         </span>
                       </div>
                       <div className="text-sm">
+                        {entry.question && (
+                          <>
+                            <p className="font-medium mb-2">Question:</p>
+                            <p className="text-gray-600 mb-3 italic">{entry.question}</p>
+                          </>
+                        )}
                         <p className="font-medium mb-2">Answer:</p>
                         <p className="text-gray-700 whitespace-pre-wrap">{entry.content}</p>
                       </div>
