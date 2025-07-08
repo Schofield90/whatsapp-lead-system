@@ -1,51 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { sendWhatsAppMessage } from '@/lib/twilio';
-import { processConversationWithClaude, alertIfHighCosts } from '@/lib/claude-optimized';
-import { sendBookingConfirmation } from '@/lib/email';
-import { createCalendarService } from '@/lib/google-calendar';
-import { reminderService } from '@/lib/reminder-service';
+// TEMPORARY: Commented out imports to test deployment
+// import { createServiceClient } from '@/lib/supabase/server';
+// import { sendWhatsAppMessage } from '@/lib/twilio';
+// import { processConversationWithClaude, alertIfHighCosts } from '@/lib/claude-optimized';
+// import { sendBookingConfirmation } from '@/lib/email';
+// import { createCalendarService } from '@/lib/google-calendar';
+// import { reminderService } from '@/lib/reminder-service';
 
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-  const requestId = Math.random().toString(36).substring(7);
+  // TEMPORARY: Basic webhook without safeguards to test deployment
+  console.log('📞 Twilio webhook received (basic mode)');
   
   try {
-    // SAFEGUARD 1: Rate limiting
-    const clientIP = request.headers.get('x-forwarded-for') || 'unknown';
-    const { rateLimiters } = await import('@/lib/rate-limiter');
-    const rateCheck = await rateLimiters.webhook.checkLimit(clientIP);
+    const body = await request.text();
+    const params = new URLSearchParams(body);
+    const from = (params.get('From') || '').replace('whatsapp:', '');
+    const messageBody = params.get('Body') || '';
     
-    if (!rateCheck.allowed) {
-      console.warn(`🚨 Rate limit exceeded for webhook from ${clientIP}`);
-      return new NextResponse('Rate limit exceeded', { 
-        status: 429,
-        headers: {
-          'Retry-After': Math.ceil((rateCheck.resetTime - Date.now()) / 1000).toString()
-        }
-      });
-    }
-
-    // SAFEGUARD 2: Request timeout
-    const timeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Request timeout')), 30000) // 30 second timeout
-    );
-
-    const result = await Promise.race([
-      processWebhookSafely(request, requestId),
-      timeout
-    ]);
-
-    const duration = Date.now() - startTime;
-    console.log(`✅ Webhook ${requestId} completed in ${duration}ms`);
+    console.log(`Message from ${from}: ${messageBody}`);
     
-    return result;
+    // Simple response for now
+    return new NextResponse('OK', { status: 200 });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`❌ Webhook ${requestId} failed after ${duration}ms:`, error);
-    
-    // Always return success to prevent Twilio retries on our errors
-    return new NextResponse('Error processed', { status: 200 });
+    console.error('Webhook error:', error);
+    return new NextResponse('Error', { status: 200 });
   }
 }
 
