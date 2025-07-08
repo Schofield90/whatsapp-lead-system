@@ -44,7 +44,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 # Twilio Configuration
 TWILIO_ACCOUNT_SID=your_twilio_account_sid
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
-TWILIO_PHONE_NUMBER=your_twilio_whatsapp_number
+TWILIO_WHATSAPP_NUMBER=your_twilio_whatsapp_number
 
 # Anthropic Configuration
 ANTHROPIC_API_KEY=your_anthropic_api_key

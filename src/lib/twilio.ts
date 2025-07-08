@@ -26,9 +26,15 @@ function getTwilioClient() {
 export async function sendWhatsAppMessage(to: string, message: string) {
   try {
     const twilioClient = getTwilioClient();
+    const whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+    
+    if (!whatsappNumber) {
+      throw new Error('TWILIO_WHATSAPP_NUMBER must be set in environment variables');
+    }
+    
     const response = await twilioClient.messages.create({
       body: message,
-      from: process.env.TWILIO_PHONE_NUMBER, // Your Twilio WhatsApp number
+      from: `whatsapp:${whatsappNumber}`, // Correct format for WhatsApp messages
       to: to
     });
     
