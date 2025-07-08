@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { getRelevantKnowledge, formatKnowledgeForAI } from '@/lib/knowledge';
 
 // Lazy initialization of Anthropic client to avoid build-time errors
 let anthropic: Anthropic | null = null;
@@ -29,18 +30,33 @@ export async function getClaudeResponse(
   phoneNumber: string
 ): Promise<string> {
   try {
-    // System prompt for the WhatsApp chatbot
-    const systemPrompt = `You are a helpful WhatsApp chatbot assistant. 
+    // Step 1: Fetch relevant knowledge from Supabase based on user message
+    console.log('Fetching relevant knowledge for user message...');
+    const relevantKnowledge = await getRelevantKnowledge(message);
+    
+    // Step 2: Format knowledge entries for AI context
+    const knowledgeContext = formatKnowledgeForAI(relevantKnowledge);
+    
+    // Step 3: Create enhanced system prompt with gym business knowledge
+    const systemPrompt = `You are a gym business WhatsApp chatbot assistant. 
+    You represent a fitness gym and help customers with inquiries about memberships, services, and general gym information.
     Keep responses concise and friendly, suitable for WhatsApp messaging.
     The user is messaging from phone number: ${phoneNumber}
     
+    IMPORTANT: Use the gym business knowledge provided below to answer questions accurately.
+    ${knowledgeContext}
+    
     Guidelines:
     - Keep responses under 300 characters when possible
-    - Use a conversational, friendly tone
-    - Ask clarifying questions if needed
-    - Provide helpful and accurate information
-    - If you don't know something, say so politely`;
+    - Use a conversational, friendly tone appropriate for a gym
+    - Always refer to the gym business knowledge above when answering questions
+    - If information isn't in the knowledge base, say you'll get back to them
+    - Focus on being helpful and encouraging about fitness goals
+    - Offer to book appointments or tours when appropriate
+    - Ask clarifying questions if needed`;
 
+    console.log('Generating AI response with gym business context...');
+    
     const anthropicClient = getAnthropicClient();
     const response = await anthropicClient.messages.create({
       model: 'claude-3-5-sonnet-20241022',
