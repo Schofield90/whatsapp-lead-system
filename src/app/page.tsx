@@ -36,6 +36,19 @@ export default function Home() {
               </a>
             </div>
           </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-2xl font-semibold mb-4">Schedule a Demo</h2>
+            <p className="text-gray-700 mb-4">
+              Book a consultation to see how our WhatsApp AI system can transform your lead qualification process and boost your sales.
+            </p>
+            <a 
+              href="/calendar"
+              className="inline-block bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors"
+            >
+              📅 Book Consultation
+            </a>
+          </div>
           
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-2xl font-semibold mb-4">System Status</h2>
