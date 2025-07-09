@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getRelevantKnowledge, formatKnowledgeForAI, getRandomQuizQuestion, getKnowledgeByType, KNOWLEDGE_TYPES } from '@/lib/knowledge';
+import { bookCalendarAppointment, checkAvailableSlots, parseDateTime, formatBookingConfirmation, BookingRequest } from '@/lib/calendar-booking';
 
 // Lazy initialization of Anthropic client to avoid build-time errors
 let anthropic: Anthropic | null = null;
@@ -70,6 +71,14 @@ export async function getClaudeResponse(
     - Pricing Information: Always use the exact pricing from your knowledge base
     - Policies: Follow all gym policies and procedures as specified
     
+    CALENDAR BOOKING CAPABILITIES:
+    - You can book appointments and consultations directly in my calendar
+    - When someone wants to schedule a call, meeting, or appointment, proactively offer to book it
+    - Ask for their preferred date and time if not provided
+    - Common booking phrases: "book a call", "schedule appointment", "set up meeting"
+    - Always confirm booking details before proceeding
+    - If booking fails, offer alternative times or manual booking options
+    
     SALES-FOCUSED GUIDELINES:
     - Keep responses under 300 characters when possible for WhatsApp
     - Use a conversational, friendly tone that builds rapport
@@ -82,9 +91,53 @@ export async function getClaudeResponse(
     - Handle objections using the scripts in your knowledge base
     - If specific information isn't available, offer to connect them with a team member
     - Focus on benefits that matter to the prospect
-    - When appropriate, engage with fitness tips or quiz questions to build interest`;
+    - When appropriate, engage with fitness tips or quiz questions to build interest
+    - PROACTIVELY suggest booking a consultation or call when appropriate`;
 
-    // Step 8: Log comprehensive knowledge context for debugging
+    // Step 8: Check if this is a calendar booking request
+    const isBookingRequest = message.toLowerCase().includes('book') || 
+                            message.toLowerCase().includes('schedule') || 
+                            message.toLowerCase().includes('appointment') ||
+                            message.toLowerCase().includes('meeting') ||
+                            message.toLowerCase().includes('call');
+
+    // Step 9: Handle calendar booking requests
+    if (isBookingRequest) {
+      console.log('Detected potential booking request, checking for date/time...');
+      
+      const dateTime = parseDateTime(message);
+      if (dateTime) {
+        console.log('Parsed date/time from message:', dateTime);
+        
+        // Try to extract customer name from previous context or ask for it
+        // For now, we'll use a placeholder approach
+        const customerName = extractCustomerName(message) || 'Customer';
+        
+        const bookingData: BookingRequest = {
+          date: dateTime.date,
+          time: dateTime.time,
+          duration: 30, // Default 30 minutes
+          customerName: customerName,
+          customerPhone: phoneNumber,
+          notes: `Booking request from WhatsApp: ${message}`,
+          timeZone: 'America/New_York'
+        };
+        
+        console.log('Attempting to book calendar appointment:', bookingData);
+        
+        const bookingResult = await bookCalendarAppointment(bookingData);
+        
+        if (bookingResult.success) {
+          console.log('Calendar booking successful');
+          return formatBookingConfirmation(bookingResult, customerName);
+        } else {
+          console.log('Calendar booking failed:', bookingResult.error);
+          // Fall through to regular AI response with booking context
+        }
+      }
+    }
+
+    // Step 10: Log comprehensive knowledge context for debugging
     console.log(`Generating AI response with comprehensive knowledge context:
     - Total knowledge entries: ${uniqueKnowledge.length}
     - SOPs included: ${uniqueKnowledge.filter(k => k.type === KNOWLEDGE_TYPES.SOP).length}
@@ -126,6 +179,30 @@ export async function getClaudeResponse(
     // Return a fallback message if Claude fails
     return "I'm sorry, I'm having trouble processing your message right now. Please try again later.";
   }
+}
+
+/**
+ * Extract customer name from message
+ * @param message - User's message
+ * @returns Extracted name or null
+ */
+function extractCustomerName(message: string): string | null {
+  // Simple name extraction patterns
+  const patterns = [
+    /my name is (\w+)/i,
+    /i'm (\w+)/i,
+    /this is (\w+)/i,
+    /call me (\w+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+
+  return null;
 }
 
 export default getAnthropicClient;
