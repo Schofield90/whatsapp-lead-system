@@ -132,7 +132,7 @@ This booking was automatically created by the WhatsApp AI system.
     console.error('Calendar booking error:', error);
     
     // Handle specific Google API errors
-    if (error.code === 401) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 401) {
       return NextResponse.json(
         { error: 'Google Calendar authentication expired. Please re-authenticate.' },
         { status: 401 }
