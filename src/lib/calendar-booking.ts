@@ -59,7 +59,7 @@ export async function bookCalendarAppointment(bookingData: BookingRequest): Prom
     return {
       success: false,
       message: 'Internal error occurred while booking appointment',
-      error: error.message
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }

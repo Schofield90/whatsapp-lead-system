@@ -255,7 +255,7 @@ export default function SOPsPage() {
           ) : sops.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <p className="text-lg mb-2">No SOPs found</p>
-              <p>Click "Add SOP" to create your first Standard Operating Procedure</p>
+              <p>Click &quot;Add SOP&quot; to create your first Standard Operating Procedure</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-200">

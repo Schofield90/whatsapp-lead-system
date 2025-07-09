@@ -98,7 +98,7 @@ export default function CalendarSetupPage() {
             <ol className="text-sm text-gray-600 space-y-2">
               <li>1. Make sure you have a Google account</li>
               <li>2. Ensure you have calendar access permissions</li>
-              <li>3. You'll be redirected to Google to authorize access</li>
+              <li>3. You&apos;ll be redirected to Google to authorize access</li>
             </ol>
           </div>
           
