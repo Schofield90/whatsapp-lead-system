@@ -34,3 +34,8 @@ function getSupabaseAdminClient() {
 
 export const supabase = getSupabaseClient;
 export const supabaseAdmin = getSupabaseAdminClient;
+
+// Export createClient function for calendar integration
+export function createClient() {
+  return getSupabaseClient();
+}
