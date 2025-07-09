@@ -1,46 +1,72 @@
--- Create calendar_bookings table
-CREATE TABLE IF NOT EXISTS calendar_bookings (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  date DATE NOT NULL,
-  time TEXT NOT NULL,
-  name TEXT NOT NULL,
-  email TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  notes TEXT,
-  status TEXT DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled', 'completed')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+-- Google Calendar Integration Schema
+-- Run this in your Supabase SQL editor
+
+-- Table to store Google OAuth tokens
+CREATE TABLE IF NOT EXISTS google_tokens (
+    id TEXT PRIMARY KEY,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT,
+    expires_at BIGINT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create index for faster queries
-CREATE INDEX idx_calendar_bookings_date ON calendar_bookings(date);
-CREATE INDEX idx_calendar_bookings_status ON calendar_bookings(status);
+-- Table to store calendar bookings
+CREATE TABLE IF NOT EXISTS bookings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    google_event_id TEXT UNIQUE NOT NULL,
+    customer_name TEXT NOT NULL,
+    customer_email TEXT,
+    customer_phone TEXT NOT NULL,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    status TEXT DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled', 'completed')),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
--- Enable Row Level Security
-ALTER TABLE calendar_bookings ENABLE ROW LEVEL SECURITY;
+-- Indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_bookings_start_time ON bookings(start_time);
+CREATE INDEX IF NOT EXISTS idx_bookings_customer_phone ON bookings(customer_phone);
+CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
 
--- Create RLS policies
--- Allow anonymous read for checking availability
-CREATE POLICY "Allow anonymous read for availability check" ON calendar_bookings
-  FOR SELECT
-  USING (true);
+-- RLS policies (adjust based on your auth setup)
+ALTER TABLE google_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 
--- Allow service role full access
-CREATE POLICY "Service role has full access to calendar_bookings" ON calendar_bookings
-  FOR ALL
-  USING (auth.role() = 'service_role');
+-- Policy for google_tokens (admin only)
+CREATE POLICY "Admin can manage google tokens" ON google_tokens
+    FOR ALL USING (true); -- Adjust this based on your auth
 
--- Create function to update updated_at timestamp
+-- Policy for bookings (admin can read/write, customers can read their own)
+CREATE POLICY "Admin can manage all bookings" ON bookings
+    FOR ALL USING (true); -- Adjust this based on your auth
+
+-- Optional: Add a function to clean up expired tokens
+CREATE OR REPLACE FUNCTION cleanup_expired_tokens()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM google_tokens 
+    WHERE expires_at < EXTRACT(EPOCH FROM NOW()) * 1000;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Optional: Add a trigger to update the updated_at column
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-  NEW.updated_at = CURRENT_TIMESTAMP;
-  RETURN NEW;
+    NEW.updated_at = NOW();
+    RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
--- Create trigger to automatically update updated_at
-CREATE TRIGGER update_calendar_bookings_updated_at 
-  BEFORE UPDATE ON calendar_bookings 
-  FOR EACH ROW 
-  EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_bookings_updated_at
+    BEFORE UPDATE ON bookings
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_google_tokens_updated_at
+    BEFORE UPDATE ON google_tokens
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();

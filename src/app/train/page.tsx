@@ -241,7 +241,7 @@ export default function TrainPage() {
             <li>• <strong>Provide closing techniques:</strong> Your best methods for asking for the sale</li>
             <li>• <strong>Include qualification questions:</strong> How you identify serious prospects</li>
             <li>• <strong>Add real examples:</strong> Successful sales conversations from your experience</li>
-            <li>• Skip questions you're not sure about - accuracy is more important than quantity</li>
+            <li>• Skip questions you&apos;re not sure about - accuracy is more important than quantity</li>
           </ul>
         </div>
 
