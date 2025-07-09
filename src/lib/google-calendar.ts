@@ -34,7 +34,7 @@ export function getAuthUrl(): string {
  * @returns Access and refresh tokens
  */
 export async function getTokens(code: string) {
-  const { tokens } = await oauth2Client.getAccessToken(code);
+  const { tokens } = await oauth2Client.getToken(code);
   return tokens;
 }
 
@@ -64,7 +64,8 @@ export function getCalendarClient(accessToken: string, refreshToken?: string) {
     refresh_token: refreshToken
   });
 
-  return google.calendar({ version: 'v3', auth: authClient });
+  google.options({ auth: authClient });
+  return google.calendar('v3');
 }
 
 /**

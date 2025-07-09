@@ -25,7 +25,7 @@ export async function GET() {
 
     // Check if tokens exist and are not expired
     const now = Date.now();
-    const isExpired = tokenData.expires_at && tokenData.expires_at < now;
+    const isExpired = tokenData.expires_at && (tokenData.expires_at as number) < now;
 
     if (!tokenData.access_token || isExpired) {
       return NextResponse.json({ 

@@ -1,8 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 // Lazy initialization of Supabase clients to avoid build-time errors
-let supabaseClient: ReturnType<typeof createClient> | null = null;
-let supabaseAdminClient: ReturnType<typeof createClient> | null = null;
+let supabaseClient: ReturnType<typeof createSupabaseClient> | null = null;
+let supabaseAdminClient: ReturnType<typeof createSupabaseClient> | null = null;
 
 function getSupabaseClient() {
   if (!supabaseClient) {
@@ -13,7 +13,7 @@ function getSupabaseClient() {
       throw new Error('NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set');
     }
     
-    supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    supabaseClient = createSupabaseClient(supabaseUrl, supabaseAnonKey);
   }
   return supabaseClient;
 }
@@ -27,7 +27,7 @@ function getSupabaseAdminClient() {
       throw new Error('NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
     }
     
-    supabaseAdminClient = createClient(supabaseUrl, serviceRoleKey);
+    supabaseAdminClient = createSupabaseClient(supabaseUrl, serviceRoleKey);
   }
   return supabaseAdminClient;
 }

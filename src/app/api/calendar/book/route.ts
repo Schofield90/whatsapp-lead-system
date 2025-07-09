@@ -48,8 +48,8 @@ export async function POST(request: NextRequest) {
 
     // Create calendar client
     const calendarClient = getCalendarClient(
-      tokenData.access_token,
-      tokenData.refresh_token
+      tokenData.access_token as string,
+      tokenData.refresh_token as string
     );
 
     // Parse date and time
@@ -175,8 +175,8 @@ export async function GET(request: NextRequest) {
     }
 
     const calendarClient = getCalendarClient(
-      tokenData.access_token,
-      tokenData.refresh_token
+      tokenData.access_token as string,
+      tokenData.refresh_token as string
     );
 
     // Define business hours (9 AM to 5 PM)

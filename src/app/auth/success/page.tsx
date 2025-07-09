@@ -3,6 +3,8 @@
  * Displayed after successful Google Calendar authentication
  */
 
+'use client';
+
 export default function AuthSuccessPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
