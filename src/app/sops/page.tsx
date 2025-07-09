@@ -95,7 +95,28 @@ export default function SOPsPage() {
         setShowAddForm(false);
         loadSOPs(); // Reload the list
       } else {
-        setFeedback(`Error adding SOP: ${data.error}`);
+        // Display detailed error information
+        console.error('API Error Response:', data);
+        
+        let errorMessage = `Error adding SOP: ${data.error}`;
+        
+        if (data.details) {
+          // Add specific error details if available
+          if (data.details.message) {
+            errorMessage += `\n${data.details.message}`;
+          }
+          if (data.details.hint) {
+            errorMessage += `\n\nHint: ${data.details.hint}`;
+          }
+          if (data.details.type === 'INVALID_ENV_VARS') {
+            errorMessage += '\n\n⚠️ Your environment variables contain placeholder values. Please update your .env.local file with actual Supabase credentials.';
+          }
+          if (data.details.missing) {
+            errorMessage += `\n\nMissing: ${data.details.missing.join(', ')}`;
+          }
+        }
+        
+        setFeedback(errorMessage);
       }
     } catch (error) {
       setFeedback('Network error. Please try again.');
